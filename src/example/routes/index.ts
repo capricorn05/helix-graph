@@ -1,0 +1,145 @@
+import { defineRoute, createRouter } from "../../helix/index.js";
+import { sendJson } from "../utils/http.js";
+
+// Page handlers
+import {
+  handleHome,
+  handleUserDetail,
+  handleUserEdit,
+} from "../handlers/users.handler.js";
+import {
+  handleDashboard,
+  handleSettings,
+  handleAbout,
+  handleSearch,
+  handleReports,
+  handlePosts,
+  handleExternalData,
+  handleUsersPanelComponent,
+  handleAppCoreComponent,
+} from "../handlers/pages.handler.js";
+
+// API handlers
+import {
+  handleUsersApi,
+  handleUserDetailApi,
+  handleCreateUser,
+  handleUserStats,
+  handleExternalDataApi,
+  handleExternalDataDetailApi,
+  handlePostsApi,
+  handleDeleteUser,
+  handleActivateUser,
+  handleUpdateUser,
+} from "../handlers/api.handler.js";
+
+// Utility handlers
+import { handleStaticFile } from "../handlers/static.handler.js";
+
+// ---------------------------------------------------------------------------
+// Route declarations — each call registers a RouteNode in the UnifiedGraph
+// ---------------------------------------------------------------------------
+
+// Pages
+const postsRoute = defineRoute("GET", "/posts", handlePosts);
+const homeRoute = defineRoute("GET", "/", handleHome);
+const userDetailRoute = defineRoute("GET", "/users/:id", handleUserDetail);
+const userEditRoute = defineRoute("GET", "/users/:id/edit", handleUserEdit);
+const dashboardRoute = defineRoute("GET", "/dashboard", handleDashboard);
+const settingsRoute = defineRoute("GET", "/settings", handleSettings);
+const aboutRoute = defineRoute("GET", "/about", handleAbout);
+const searchRoute = defineRoute("GET", "/search", handleSearch);
+const reportsRoute = defineRoute("GET", "/reports", handleReports);
+const externalDataRoute = defineRoute(
+  "GET",
+  "/external-data",
+  handleExternalData,
+);
+const usersPanelComponentRoute = defineRoute(
+  "GET",
+  "/components/users-panel",
+  handleUsersPanelComponent,
+);
+const appCoreComponentRoute = defineRoute(
+  "GET",
+  "/components/app-core",
+  handleAppCoreComponent,
+);
+
+// API
+const apiUsersRoute = defineRoute("GET", "/api/users", handleUsersApi);
+const apiUserDetailRoute = defineRoute(
+  "GET",
+  "/api/users/:id",
+  handleUserDetailApi,
+);
+const apiStatsRoute = defineRoute("GET", "/api/stats", handleUserStats);
+const apiExternalDataRoute = defineRoute(
+  "GET",
+  "/api/external-data",
+  handleExternalDataApi,
+);
+const apiExternalDataDetailRoute = defineRoute(
+  "GET",
+  "/api/external-data/:id",
+  handleExternalDataDetailApi,
+);
+const apiPostsRoute = defineRoute("GET", "/api/posts", handlePostsApi);
+const createUserRoute = defineRoute(
+  "POST",
+  "/actions/create-user",
+  handleCreateUser,
+);
+const updateUserRoute = defineRoute("POST", "/api/users/:id", handleUpdateUser);
+const deleteUserRoute = defineRoute(
+  "DELETE",
+  "/api/users/:id",
+  handleDeleteUser,
+);
+const activateUserRoute = defineRoute(
+  "POST",
+  "/api/users/:id/activate",
+  handleActivateUser,
+);
+
+// Utility
+const healthRoute = defineRoute("GET", "/health", (ctx) =>
+  sendJson(ctx, 200, { ok: true }),
+);
+const staticClientRoute = defineRoute("GET", "/client/*", handleStaticFile);
+const staticHelixRoute = defineRoute("GET", "/helix/*", handleStaticFile);
+
+// ---------------------------------------------------------------------------
+// Router — compiled route table, tested in declaration order
+// ---------------------------------------------------------------------------
+
+export const router = createRouter([
+  // Pages (specific before wildcard)
+  homeRoute,
+  userDetailRoute,
+  userEditRoute,
+  dashboardRoute,
+  settingsRoute,
+  aboutRoute,
+  searchRoute,
+  reportsRoute,
+  externalDataRoute,
+  postsRoute,
+  usersPanelComponentRoute,
+  appCoreComponentRoute,
+  // API
+  apiUsersRoute,
+  apiUserDetailRoute,
+  apiStatsRoute,
+  apiExternalDataRoute,
+  apiExternalDataDetailRoute,
+  apiPostsRoute,
+  createUserRoute,
+  updateUserRoute,
+  deleteUserRoute,
+  activateUserRoute,
+  // Utility
+  healthRoute,
+  staticClientRoute,
+  staticHelixRoute,
+]);

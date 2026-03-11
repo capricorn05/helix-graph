@@ -1,0 +1,16 @@
+{
+  "name": "helix-graph3-prototype",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/example/server.js",
+    "dev": "npm run build && npm run start",
+    "bench": "npm run build && node dist/bench/index.js"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.2"
+  }
+}

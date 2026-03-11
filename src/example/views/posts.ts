@@ -1,0 +1,75 @@
+import type { PostRow, PostsPage } from "../resources/posts.resource.js";
+import { uiButton } from "../../helix/ui.js";
+import { uiDataTable } from "../../helix/components/table.js";
+import type { UIDataTableColumnDef } from "../../helix/components/table.js";
+
+const postsColumns: UIDataTableColumnDef<PostRow>[] = [
+  {
+    id: "id",
+    header: "ID",
+    accessorKey: "id",
+    cellAttrs: ({ row }) => ({ "data-hx-id": `post-row-${row.id}-id` }),
+  },
+  {
+    id: "userId",
+    header: "User",
+    accessorKey: "userId",
+    cellAttrs: ({ row }) => ({ "data-hx-id": `post-row-${row.id}-userId` }),
+  },
+  {
+    id: "title",
+    header: "Title",
+    accessorKey: "title",
+    cellAttrs: ({ row }) => ({ "data-hx-id": `post-row-${row.id}-title` }),
+  },
+  {
+    id: "body",
+    header: "Body",
+    cell: ({ row }) =>
+      row.body.slice(0, 80) + (row.body.length > 80 ? "…" : ""),
+    cellAttrs: ({ row }) => ({ "data-hx-id": `post-row-${row.id}-body` }),
+  },
+];
+
+export function renderPostsPage(page: PostsPage): string {
+  const tableHtml = uiDataTable({
+    data: page.rows,
+    columns: postsColumns,
+    rowAttrs: (row) => ({ "data-hx-key": row.id }),
+    bodyAttrs: {
+      "data-hx-id": "posts-body",
+      "data-hx-list": "posts-body",
+    },
+  });
+
+  return `
+<section>
+  <h2>Posts</h2>
+  ${tableHtml}
+
+  <div class="pager">
+    ${uiButton({
+      label: "← Prev",
+      bind: "posts-page-prev",
+      variant: "secondary",
+      disabled: page.page <= 1,
+      attrs: { "data-hx-id": "posts-prev-btn" },
+    })}
+    <span data-hx-id="posts-page-label">Page ${page.page} / ${page.totalPages}</span>
+    ${uiButton({
+      label: "Next →",
+      bind: "posts-page-next",
+      variant: "secondary",
+      disabled: page.page >= page.totalPages,
+      attrs: { "data-hx-id": "posts-next-btn" },
+    })}
+    <span data-hx-id="posts-total-label">(${page.total} total)</span>
+    <span
+      data-hx-id="posts-page-state"
+      data-page="${page.page}"
+      data-total-pages="${page.totalPages}"
+      hidden
+    ></span>
+  </div>
+</section>`;
+}
