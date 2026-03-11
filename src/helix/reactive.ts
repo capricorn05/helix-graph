@@ -70,8 +70,8 @@ class CellImpl<T> implements Cell<T> {
         scope: options?.scope ?? "view",
         serializable: options?.serializable ?? true,
         secure: options?.secure ?? false,
-        clientOnly: options?.clientOnly ?? false
-      }
+        clientOnly: options?.clientOnly ?? false,
+      },
     });
   }
 
@@ -83,7 +83,8 @@ class CellImpl<T> implements Cell<T> {
   }
 
   set(next: T | ((prev: T) => T)): void {
-    const nextValue = typeof next === "function" ? (next as (prev: T) => T)(this.value) : next;
+    const nextValue =
+      typeof next === "function" ? (next as (prev: T) => T)(this.value) : next;
     if (Object.is(nextValue, this.value)) {
       return;
     }
@@ -141,8 +142,8 @@ class DerivedImpl<T> implements Derived<T>, Tracker {
       type: "DerivedNode",
       label: options?.name ?? this.id,
       meta: {
-        scope: options?.scope ?? "view"
-      }
+        scope: options?.scope ?? "view",
+      },
     });
   }
 
@@ -178,9 +179,9 @@ class DerivedImpl<T> implements Derived<T>, Tracker {
     this.dependencies.set(source.id, unsubscribe);
     runtimeGraph.addEdge({
       id: nextEdgeId("dependsOn"),
-      from: this.id,
-      to: source.id,
-      type: "dependsOn"
+      from: source.id,
+      to: this.id,
+      type: "dependsOn",
     });
   }
 
@@ -234,6 +235,9 @@ export function cell<T>(initial: T, options?: CellOptions): Cell<T> {
   return new CellImpl(initial, options);
 }
 
-export function derived<T>(compute: () => T, options?: DerivedOptions): Derived<T> {
+export function derived<T>(
+  compute: () => T,
+  options?: DerivedOptions,
+): Derived<T> {
   return new DerivedImpl(compute, options);
 }

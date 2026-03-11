@@ -29,6 +29,14 @@ Open: `http://localhost:4173`
 
 Health check: `http://localhost:4173/health`
 
+## Validation workflow
+
+- One command before push/PR: `npm run verify`
+- Regenerate bindings only when binding ids or client handler exports change: `npm run gen:bindings`
+- Optional pre-commit automation: `npm run hooks:install`
+
+The installed pre-commit hook runs `npm run verify` automatically.
+
 ## Project layout
 
 - `src/helix/*` — framework primitives/runtime/SSR helpers

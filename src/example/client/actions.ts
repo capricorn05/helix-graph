@@ -1,11 +1,12 @@
 import { reconcileKeyed } from "../../helix/reconciler.js";
 import { commonValidators, HelixForm } from "../../helix/form.js";
-import { withOptimistic } from "../../helix/optimistic.js";
 import type { FormActionError, Lane, PatchOp } from "../../helix/types.js";
-import type {
+import {
   HelixClientHandlerContext,
   HelixClientRuntime,
   UsersClientState,
+  makeInitialCreateUserFormState,
+  makeInitialExternalDetailState,
 } from "./runtime.js";
 
 interface UserRow {
@@ -67,6 +68,7 @@ interface PostsApiResponse {
 type UsersPanelKind = "summary" | "reports" | "external-data" | "help";
 
 let appNavPopstateInstalled = false;
+const runtimeStateReactivityInstalled = new WeakSet<HelixClientRuntime>();
 
 function isUsersPanelKind(value: string | undefined): value is UsersPanelKind {
   return (
@@ -132,6 +134,8 @@ function updateActiveAdminNav(pathname: string): void {
 }
 
 function syncUsersStateFromDom(runtime: HelixClientRuntime): void {
+  installRuntimeStateReactivity(runtime);
+
   const stateElement = document.querySelector(
     '[data-hx-id="users-page-state"]',
   );
@@ -166,6 +170,116 @@ function syncUsersStateFromDom(runtime: HelixClientRuntime): void {
     sortCol,
     sortDir,
   };
+}
+
+function syncPostsStateFromDom(runtime: HelixClientRuntime): void {
+  installRuntimeStateReactivity(runtime);
+
+  const stateElement = document.querySelector('[data-hx-id="posts-page-state"]');
+  if (!(stateElement instanceof HTMLElement)) {
+    return;
+  }
+
+  runtime.postsState = {
+    page: Math.max(
+      1,
+      Math.floor(parseNumeric(stateElement.dataset.page, runtime.postsState.page)),
+    ),
+    pageSize: Math.max(
+      1,
+      Math.floor(
+        parseNumeric(stateElement.dataset.pageSize, runtime.postsState.pageSize),
+      ),
+    ),
+    total: Math.max(
+      0,
+      Math.floor(parseNumeric(stateElement.dataset.total, runtime.postsState.total)),
+    ),
+    totalPages: Math.max(
+      1,
+      Math.floor(
+        parseNumeric(
+          stateElement.dataset.totalPages,
+          runtime.postsState.totalPages,
+        ),
+      ),
+    ),
+  };
+}
+
+function syncExternalStateFromDom(runtime: HelixClientRuntime): void {
+  installRuntimeStateReactivity(runtime);
+
+  const stateElement = document.querySelector(
+    '[data-hx-id="external-page-state"]',
+  );
+  if (!(stateElement instanceof HTMLElement)) {
+    return;
+  }
+
+  runtime.externalState = {
+    page: Math.max(
+      1,
+      Math.floor(
+        parseNumeric(stateElement.dataset.page, runtime.externalState.page),
+      ),
+    ),
+    pageSize: Math.max(
+      1,
+      Math.floor(
+        parseNumeric(
+          stateElement.dataset.pageSize,
+          runtime.externalState.pageSize,
+        ),
+      ),
+    ),
+    total: Math.max(
+      0,
+      Math.floor(
+        parseNumeric(stateElement.dataset.total, runtime.externalState.total),
+      ),
+    ),
+    totalPages: Math.max(
+      1,
+      Math.floor(
+        parseNumeric(
+          stateElement.dataset.totalPages,
+          runtime.externalState.totalPages,
+        ),
+      ),
+    ),
+  };
+}
+
+function syncExternalDetailStateFromDom(runtime: HelixClientRuntime): void {
+  installRuntimeStateReactivity(runtime);
+
+  const overlay = document.querySelector('[data-hx-id="external-modal-overlay"]');
+  if (!(overlay instanceof HTMLElement)) {
+    return;
+  }
+
+  runtime.externalDetail = makeInitialExternalDetailState();
+}
+
+function syncCreateUserFormStateFromDom(runtime: HelixClientRuntime): void {
+  installRuntimeStateReactivity(runtime);
+
+  const form = document.querySelector('[data-hx-id="create-user-form"]');
+  if (!(form instanceof HTMLFormElement)) {
+    return;
+  }
+
+  runtime.createUserForm = makeInitialCreateUserFormState();
+}
+
+function syncRuntimeStateFromDom(runtime: HelixClientRuntime): void {
+  installRuntimeStateReactivity(runtime);
+  syncUsersStateFromDom(runtime);
+  syncPostsStateFromDom(runtime);
+  syncExternalStateFromDom(runtime);
+  syncExternalDetailStateFromDom(runtime);
+  syncCreateUserFormStateFromDom(runtime);
 }
 
 async function loadAdminCore(
@@ -210,7 +324,7 @@ async function loadAdminCore(
     }
 
     updateActiveAdminNav(targetUrl.pathname);
-    syncUsersStateFromDom(runtime);
+    syncRuntimeStateFromDom(runtime);
   } finally {
     core.removeAttribute("aria-busy");
   }
@@ -249,12 +363,8 @@ async function loadUsersPanel(
   });
 
   if (panel === "external-data") {
-    const externalState = document.querySelector(
-      '[data-hx-id="external-page-state"]',
-    );
-    if (externalState instanceof HTMLElement) {
-      params.set("externalPage", externalState.dataset.page ?? "1");
-    }
+    syncExternalStateFromDom(runtime);
+    params.set("externalPage", String(runtime.externalState.page));
   }
 
   const response = await fetch(`/components/users-panel?${params.toString()}`);
@@ -264,6 +374,11 @@ async function loadUsersPanel(
   }
 
   container.innerHTML = await response.text();
+
+  if (panel === "external-data") {
+    syncExternalStateFromDom(runtime);
+    syncExternalDetailStateFromDom(runtime);
+  }
 }
 
 function schedulePatchBatch(
@@ -279,6 +394,364 @@ function schedulePatchBatch(
     patches,
     nodes,
     run: (batch) => runtime.patchRuntime.applyBatch(batch),
+  });
+}
+
+function hasPatchTarget(targetId: string): boolean {
+  return (
+    document.querySelector(`[data-hx-id="${targetId}"]`) instanceof Element
+  );
+}
+
+function scheduleReactivePatches(
+  runtime: HelixClientRuntime,
+  trigger: string,
+  patches: PatchOp[],
+): void {
+  const presentPatches = patches.filter((patch) =>
+    hasPatchTarget(patch.targetId),
+  );
+  if (presentPatches.length === 0) {
+    return;
+  }
+
+  schedulePatchBatch(
+    runtime,
+    trigger,
+    "input",
+    presentPatches,
+    Array.from(new Set(presentPatches.map((patch) => patch.targetId))),
+  );
+}
+
+function installRuntimeStateReactivity(runtime: HelixClientRuntime): void {
+  if (runtimeStateReactivityInstalled.has(runtime)) {
+    return;
+  }
+
+  runtimeStateReactivityInstalled.add(runtime);
+
+  runtime.derived.pageLabel.subscribe((value) => {
+    scheduleReactivePatches(runtime, "users-state:page-label", [
+      { op: "setText", targetId: "page-label", value },
+    ]);
+  });
+
+  runtime.derived.prevDisabled.subscribe((disabled) => {
+    scheduleReactivePatches(runtime, "users-state:prev-disabled", [
+      {
+        op: "setAttr",
+        targetId: "prev-btn",
+        name: "disabled",
+        value: disabled ? "disabled" : null,
+      },
+    ]);
+  });
+
+  runtime.derived.nextDisabled.subscribe((disabled) => {
+    scheduleReactivePatches(runtime, "users-state:next-disabled", [
+      {
+        op: "setAttr",
+        targetId: "next-btn",
+        name: "disabled",
+        value: disabled ? "disabled" : null,
+      },
+    ]);
+  });
+
+  runtime.derived.sortNameIndicator.subscribe((value) => {
+    scheduleReactivePatches(runtime, "users-state:sort-name-indicator", [
+      { op: "setText", targetId: "sort-name-indicator", value },
+    ]);
+  });
+
+  runtime.derived.sortEmailIndicator.subscribe((value) => {
+    scheduleReactivePatches(runtime, "users-state:sort-email-indicator", [
+      { op: "setText", targetId: "sort-email-indicator", value },
+    ]);
+  });
+
+  runtime.stateCell.subscribe((state) => {
+    scheduleReactivePatches(runtime, "users-state:attrs", [
+      {
+        op: "setAttr",
+        targetId: "users-page-state",
+        name: "data-page",
+        value: String(state.page),
+      },
+      {
+        op: "setAttr",
+        targetId: "users-page-state",
+        name: "data-page-size",
+        value: String(state.pageSize),
+      },
+      {
+        op: "setAttr",
+        targetId: "users-page-state",
+        name: "data-total",
+        value: String(state.total),
+      },
+      {
+        op: "setAttr",
+        targetId: "users-page-state",
+        name: "data-total-pages",
+        value: String(state.totalPages),
+      },
+      {
+        op: "setAttr",
+        targetId: "users-page-state",
+        name: "data-sort-col",
+        value: state.sortCol,
+      },
+      {
+        op: "setAttr",
+        targetId: "users-page-state",
+        name: "data-sort-dir",
+        value: state.sortDir,
+      },
+    ]);
+  });
+
+  runtime.postsDerived.pageLabel.subscribe((value) => {
+    scheduleReactivePatches(runtime, "posts-state:page-label", [
+      { op: "setText", targetId: "posts-page-label", value },
+    ]);
+  });
+
+  runtime.postsDerived.totalLabel.subscribe((value) => {
+    scheduleReactivePatches(runtime, "posts-state:total-label", [
+      { op: "setText", targetId: "posts-total-label", value },
+    ]);
+  });
+
+  runtime.postsDerived.prevDisabled.subscribe((disabled) => {
+    scheduleReactivePatches(runtime, "posts-state:prev-disabled", [
+      {
+        op: "setAttr",
+        targetId: "posts-prev-btn",
+        name: "disabled",
+        value: disabled ? "disabled" : null,
+      },
+    ]);
+  });
+
+  runtime.postsDerived.nextDisabled.subscribe((disabled) => {
+    scheduleReactivePatches(runtime, "posts-state:next-disabled", [
+      {
+        op: "setAttr",
+        targetId: "posts-next-btn",
+        name: "disabled",
+        value: disabled ? "disabled" : null,
+      },
+    ]);
+  });
+
+  runtime.postsStateCell.subscribe((state) => {
+    scheduleReactivePatches(runtime, "posts-state:attrs", [
+      {
+        op: "setAttr",
+        targetId: "posts-page-state",
+        name: "data-page",
+        value: String(state.page),
+      },
+      {
+        op: "setAttr",
+        targetId: "posts-page-state",
+        name: "data-page-size",
+        value: String(state.pageSize),
+      },
+      {
+        op: "setAttr",
+        targetId: "posts-page-state",
+        name: "data-total",
+        value: String(state.total),
+      },
+      {
+        op: "setAttr",
+        targetId: "posts-page-state",
+        name: "data-total-pages",
+        value: String(state.totalPages),
+      },
+    ]);
+  });
+
+  runtime.externalDerived.pageLabel.subscribe((value) => {
+    scheduleReactivePatches(runtime, "external-state:page-label", [
+      { op: "setText", targetId: "external-page-label", value },
+    ]);
+  });
+
+  runtime.externalDerived.totalLabel.subscribe((value) => {
+    scheduleReactivePatches(runtime, "external-state:total-label", [
+      { op: "setText", targetId: "external-total-label", value },
+    ]);
+  });
+
+  runtime.externalDerived.prevDisabled.subscribe((disabled) => {
+    scheduleReactivePatches(runtime, "external-state:prev-disabled", [
+      {
+        op: "setAttr",
+        targetId: "external-prev-btn",
+        name: "disabled",
+        value: disabled ? "disabled" : null,
+      },
+    ]);
+  });
+
+  runtime.externalDerived.nextDisabled.subscribe((disabled) => {
+    scheduleReactivePatches(runtime, "external-state:next-disabled", [
+      {
+        op: "setAttr",
+        targetId: "external-next-btn",
+        name: "disabled",
+        value: disabled ? "disabled" : null,
+      },
+    ]);
+  });
+
+  runtime.externalStateCell.subscribe((state) => {
+    scheduleReactivePatches(runtime, "external-state:attrs", [
+      {
+        op: "setAttr",
+        targetId: "external-page-state",
+        name: "data-page",
+        value: String(state.page),
+      },
+      {
+        op: "setAttr",
+        targetId: "external-page-state",
+        name: "data-page-size",
+        value: String(state.pageSize),
+      },
+      {
+        op: "setAttr",
+        targetId: "external-page-state",
+        name: "data-total",
+        value: String(state.total),
+      },
+      {
+        op: "setAttr",
+        targetId: "external-page-state",
+        name: "data-total-pages",
+        value: String(state.totalPages),
+      },
+    ]);
+  });
+
+  runtime.externalDetailStateCell.subscribe((detail) => {
+    scheduleReactivePatches(runtime, "external-detail:content", [
+      { op: "setText", targetId: "external-modal-title", value: detail.title },
+      { op: "setText", targetId: "external-modal-brand", value: detail.brand },
+      {
+        op: "setText",
+        targetId: "external-modal-category",
+        value: detail.category,
+      },
+      {
+        op: "setText",
+        targetId: "external-modal-description",
+        value: detail.description,
+      },
+      {
+        op: "setAttr",
+        targetId: "external-modal-thumbnail",
+        name: "src",
+        value: detail.thumbnail || null,
+      },
+      {
+        op: "setAttr",
+        targetId: "external-modal-thumbnail",
+        name: "alt",
+        value: detail.thumbnailAlt,
+      },
+    ]);
+  });
+
+  runtime.externalDetailDerived.idLabel.subscribe((value) => {
+    scheduleReactivePatches(runtime, "external-detail:id", [
+      { op: "setText", targetId: "external-modal-id", value },
+    ]);
+  });
+
+  runtime.externalDetailDerived.priceLabel.subscribe((value) => {
+    scheduleReactivePatches(runtime, "external-detail:price", [
+      { op: "setText", targetId: "external-modal-price", value },
+    ]);
+  });
+
+  runtime.externalDetailDerived.stockLabel.subscribe((value) => {
+    scheduleReactivePatches(runtime, "external-detail:stock", [
+      { op: "setText", targetId: "external-modal-stock", value },
+    ]);
+  });
+
+  runtime.externalDetailDerived.ratingLabel.subscribe((value) => {
+    scheduleReactivePatches(runtime, "external-detail:rating", [
+      { op: "setText", targetId: "external-modal-rating", value },
+    ]);
+  });
+
+  runtime.externalDetailDerived.sourceLabel.subscribe((value) => {
+    scheduleReactivePatches(runtime, "external-detail:source", [
+      { op: "setText", targetId: "external-modal-source", value },
+    ]);
+  });
+
+  runtime.externalDetailDerived.overlayDisplay.subscribe((value) => {
+    scheduleReactivePatches(runtime, "external-detail:display", [
+      {
+        op: "setStyle",
+        targetId: "external-modal-overlay",
+        prop: "display",
+        value,
+      },
+    ]);
+  });
+
+  runtime.createUserFormStateCell.subscribe((formState) => {
+    scheduleReactivePatches(runtime, "create-user-form:text", [
+      { op: "setText", targetId: "form-status", value: formState.status },
+      { op: "setText", targetId: "error-name", value: formState.nameError },
+      {
+        op: "setText",
+        targetId: "error-email",
+        value: formState.emailError,
+      },
+      { op: "setText", targetId: "error-form", value: formState.formError },
+    ]);
+  });
+
+  runtime.createUserFormDerived.submitDisabled.subscribe((disabled) => {
+    scheduleReactivePatches(runtime, "create-user-form:submit-disabled", [
+      {
+        op: "setAttr",
+        targetId: "submit-create",
+        name: "disabled",
+        value: disabled ? "disabled" : null,
+      },
+    ]);
+  });
+
+  runtime.createUserFormDerived.nameInvalid.subscribe((invalid) => {
+    scheduleReactivePatches(runtime, "create-user-form:name-invalid", [
+      {
+        op: "setAttr",
+        targetId: "input-name",
+        name: "aria-invalid",
+        value: invalid ? "true" : null,
+      },
+    ]);
+  });
+
+  runtime.createUserFormDerived.emailInvalid.subscribe((invalid) => {
+    scheduleReactivePatches(runtime, "create-user-form:email-invalid", [
+      {
+        op: "setAttr",
+        targetId: "input-email",
+        name: "aria-invalid",
+        value: invalid ? "true" : null,
+      },
+    ]);
   });
 }
 
@@ -310,6 +783,8 @@ async function refreshUsers(
   trigger: string,
   lane: Lane,
 ): Promise<void> {
+  installRuntimeStateReactivity(runtime);
+
   const state = runtime.state;
   const params = new URLSearchParams({
     page: String(state.page),
@@ -349,73 +824,7 @@ function applyUsersPage(
   const nextKeys = page.rows.map((row) => row.id);
   reconcileKeyed(container, nextKeys, createRowNode);
 
-  const patches: PatchOp[] = [
-    {
-      op: "setText",
-      targetId: "page-label",
-      value: `Page ${page.page} / ${page.totalPages}`,
-    },
-    {
-      op: "setAttr",
-      targetId: "prev-btn",
-      name: "disabled",
-      value: page.page <= 1 ? "disabled" : null,
-    },
-    {
-      op: "setAttr",
-      targetId: "next-btn",
-      name: "disabled",
-      value: page.page >= page.totalPages ? "disabled" : null,
-    },
-    {
-      op: "setAttr",
-      targetId: "users-page-state",
-      name: "data-page",
-      value: String(page.page),
-    },
-    {
-      op: "setAttr",
-      targetId: "users-page-state",
-      name: "data-page-size",
-      value: String(page.pageSize),
-    },
-    {
-      op: "setAttr",
-      targetId: "users-page-state",
-      name: "data-total",
-      value: String(page.total),
-    },
-    {
-      op: "setAttr",
-      targetId: "users-page-state",
-      name: "data-total-pages",
-      value: String(page.totalPages),
-    },
-    {
-      op: "setAttr",
-      targetId: "users-page-state",
-      name: "data-sort-col",
-      value: page.sortCol,
-    },
-    {
-      op: "setAttr",
-      targetId: "users-page-state",
-      name: "data-sort-dir",
-      value: page.sortDir,
-    },
-    {
-      op: "setText",
-      targetId: "sort-name-indicator",
-      value:
-        page.sortCol === "name" ? (page.sortDir === "asc" ? "▲" : "▼") : "·",
-    },
-    {
-      op: "setText",
-      targetId: "sort-email-indicator",
-      value:
-        page.sortCol === "email" ? (page.sortDir === "asc" ? "▲" : "▼") : "·",
-    },
-  ];
+  const patches: PatchOp[] = [];
 
   for (const row of page.rows) {
     patches.push(
@@ -443,10 +852,7 @@ function applyUsersPage(
     );
   }
 
-  schedulePatchBatch(runtime, trigger, lane, patches, [
-    "users-body",
-    "page-label",
-  ]);
+  schedulePatchBatch(runtime, trigger, lane, patches, ["users-body"]);
 }
 
 function createExternalProductRowNode(key: string): Node {
@@ -519,30 +925,21 @@ function createPostRowNode(key: string): Node {
   return row;
 }
 
-function readPostsPageState(): { page: number; totalPages: number } {
-  const state = document.querySelector('[data-hx-id="posts-page-state"]');
-  if (!(state instanceof HTMLElement)) {
-    throw new Error("Missing posts page state element");
-  }
-
-  const page = Number(state.dataset.page ?? "1");
-  const totalPages = Number(state.dataset.totalPages ?? "1");
-
-  return {
-    page: Number.isFinite(page) && page > 0 ? Math.floor(page) : 1,
-    totalPages:
-      Number.isFinite(totalPages) && totalPages > 0
-        ? Math.floor(totalPages)
-        : 1,
-  };
-}
-
 function applyPostsPage(
   runtime: HelixClientRuntime,
   postsPage: PostsApiResponse,
   trigger: string,
   lane: Lane,
 ): void {
+  installRuntimeStateReactivity(runtime);
+
+  runtime.postsState = {
+    page: postsPage.page,
+    pageSize: postsPage.pageSize,
+    total: postsPage.total,
+    totalPages: postsPage.totalPages,
+  };
+
   const container = document.querySelector('[data-hx-id="posts-body"]');
   if (!(container instanceof Element)) {
     throw new Error("Missing posts container");
@@ -551,47 +948,20 @@ function applyPostsPage(
   const nextKeys = postsPage.rows.map((row) => row.id);
   reconcileKeyed(container, nextKeys, createPostRowNode);
 
-  const patches: PatchOp[] = [
-    {
-      op: "setText",
-      targetId: "posts-page-label",
-      value: `Page ${postsPage.page} / ${postsPage.totalPages}`,
-    },
-    {
-      op: "setText",
-      targetId: "posts-total-label",
-      value: `(${postsPage.total} total)`,
-    },
-    {
-      op: "setAttr",
-      targetId: "posts-prev-btn",
-      name: "disabled",
-      value: postsPage.page <= 1 ? "disabled" : null,
-    },
-    {
-      op: "setAttr",
-      targetId: "posts-next-btn",
-      name: "disabled",
-      value: postsPage.page >= postsPage.totalPages ? "disabled" : null,
-    },
-    {
-      op: "setAttr",
-      targetId: "posts-page-state",
-      name: "data-page",
-      value: String(postsPage.page),
-    },
-    {
-      op: "setAttr",
-      targetId: "posts-page-state",
-      name: "data-total-pages",
-      value: String(postsPage.totalPages),
-    },
-  ];
+  const patches: PatchOp[] = [];
 
   for (const row of postsPage.rows) {
     patches.push(
-      { op: "setText", targetId: `post-row-${row.id}-id`, value: String(row.id) },
-      { op: "setText", targetId: `post-row-${row.id}-userId`, value: String(row.userId) },
+      {
+        op: "setText",
+        targetId: `post-row-${row.id}-id`,
+        value: String(row.id),
+      },
+      {
+        op: "setText",
+        targetId: `post-row-${row.id}-userId`,
+        value: String(row.userId),
+      },
       { op: "setText", targetId: `post-row-${row.id}-title`, value: row.title },
       {
         op: "setText",
@@ -601,10 +971,7 @@ function applyPostsPage(
     );
   }
 
-  schedulePatchBatch(runtime, trigger, lane, patches, [
-    "posts-body",
-    "posts-page-label",
-  ]);
+  schedulePatchBatch(runtime, trigger, lane, patches, ["posts-body"]);
 }
 
 async function refreshPosts(
@@ -624,30 +991,22 @@ async function refreshPosts(
   window.history.replaceState({}, "", `/posts?page=${postsPage.page}`);
 }
 
-function readExternalPageState(): { page: number; totalPages: number } {
-  const state = document.querySelector('[data-hx-id="external-page-state"]');
-  if (!(state instanceof HTMLElement)) {
-    throw new Error("Missing external page state element");
-  }
-
-  const page = Number(state.dataset.page ?? "1");
-  const totalPages = Number(state.dataset.totalPages ?? "1");
-
-  return {
-    page: Number.isFinite(page) && page > 0 ? Math.floor(page) : 1,
-    totalPages:
-      Number.isFinite(totalPages) && totalPages > 0
-        ? Math.floor(totalPages)
-        : 1,
-  };
-}
-
 function applyExternalProductsPage(
   runtime: HelixClientRuntime,
   productsPage: ExternalProductsApiResponse,
   trigger: string,
   lane: Lane,
 ): void {
+  installRuntimeStateReactivity(runtime);
+
+  runtime.externalState = {
+    page: productsPage.page,
+    pageSize: productsPage.pageSize,
+    total: productsPage.total,
+    totalPages: productsPage.totalPages,
+  };
+  runtime.externalDetail = makeInitialExternalDetailState();
+
   const container = document.querySelector(
     '[data-hx-id="external-products-body"]',
   );
@@ -658,42 +1017,7 @@ function applyExternalProductsPage(
   const nextKeys = productsPage.rows.map((row) => row.id);
   reconcileKeyed(container, nextKeys, createExternalProductRowNode);
 
-  const patches: PatchOp[] = [
-    {
-      op: "setText",
-      targetId: "external-page-label",
-      value: `Page ${productsPage.page} / ${productsPage.totalPages}`,
-    },
-    {
-      op: "setText",
-      targetId: "external-total-label",
-      value: `(Total rows: ${productsPage.total})`,
-    },
-    {
-      op: "setAttr",
-      targetId: "external-prev-btn",
-      name: "disabled",
-      value: productsPage.page <= 1 ? "disabled" : null,
-    },
-    {
-      op: "setAttr",
-      targetId: "external-next-btn",
-      name: "disabled",
-      value: productsPage.page >= productsPage.totalPages ? "disabled" : null,
-    },
-    {
-      op: "setAttr",
-      targetId: "external-page-state",
-      name: "data-page",
-      value: String(productsPage.page),
-    },
-    {
-      op: "setAttr",
-      targetId: "external-page-state",
-      name: "data-total-pages",
-      value: String(productsPage.totalPages),
-    },
-  ];
+  const patches: PatchOp[] = [];
 
   for (const row of productsPage.rows) {
     patches.push(
@@ -743,7 +1067,6 @@ function applyExternalProductsPage(
 
   schedulePatchBatch(runtime, trigger, lane, patches, [
     "external-products-body",
-    "external-page-label",
   ]);
 }
 
@@ -773,9 +1096,9 @@ async function refreshExternalProducts(
 async function openExternalDetail(
   runtime: HelixClientRuntime,
   rowId: number,
-  trigger: string,
-  lane: Lane,
 ): Promise<void> {
+  installRuntimeStateReactivity(runtime);
+
   const response = await fetch(`/api/external-data/${rowId}`);
   if (!response.ok) {
     throw new Error(
@@ -785,84 +1108,25 @@ async function openExternalDetail(
 
   const detail = (await response.json()) as ExternalProductDetailApiResponse;
 
-  const patches: PatchOp[] = [
-    { op: "setText", targetId: "external-modal-title", value: detail.title },
-    { op: "setText", targetId: "external-modal-id", value: String(detail.id) },
-    { op: "setText", targetId: "external-modal-brand", value: detail.brand },
-    {
-      op: "setText",
-      targetId: "external-modal-category",
-      value: detail.category,
-    },
-    {
-      op: "setText",
-      targetId: "external-modal-price",
-      value: `$${detail.price.toFixed(2)}`,
-    },
-    {
-      op: "setText",
-      targetId: "external-modal-stock",
-      value: String(detail.stock),
-    },
-    {
-      op: "setText",
-      targetId: "external-modal-rating",
-      value: detail.rating.toFixed(1),
-    },
-    {
-      op: "setText",
-      targetId: "external-modal-source",
-      value: `Seed Product #${detail.sourceId}`,
-    },
-    {
-      op: "setText",
-      targetId: "external-modal-description",
-      value: detail.description,
-    },
-    {
-      op: "setAttr",
-      targetId: "external-modal-thumbnail",
-      name: "src",
-      value: detail.thumbnail || null,
-    },
-    {
-      op: "setAttr",
-      targetId: "external-modal-thumbnail",
-      name: "alt",
-      value: detail.title,
-    },
-    {
-      op: "setStyle",
-      targetId: "external-modal-overlay",
-      prop: "display",
-      value: "flex",
-    },
-  ];
-
-  schedulePatchBatch(runtime, trigger, lane, patches, [
-    "external-modal-overlay",
-  ]);
+  runtime.externalDetail = {
+    open: true,
+    title: detail.title,
+    id: detail.id,
+    brand: detail.brand,
+    category: detail.category,
+    price: detail.price,
+    stock: detail.stock,
+    rating: detail.rating,
+    sourceId: detail.sourceId,
+    description: detail.description,
+    thumbnail: detail.thumbnail,
+    thumbnailAlt: detail.title,
+  };
 }
 
-function closeExternalDetail(
-  runtime: HelixClientRuntime,
-  trigger: string,
-  lane: Lane,
-): void {
-  schedulePatchBatch(
-    runtime,
-    trigger,
-    lane,
-    [
-      {
-        op: "setStyle",
-        targetId: "external-modal-overlay",
-        prop: "display",
-        value: "none",
-      },
-    ],
-    ["external-modal-overlay"],
-  );
+function closeExternalDetail(runtime: HelixClientRuntime): void {
+  installRuntimeStateReactivity(runtime);
+  runtime.externalDetail = makeInitialExternalDetailState();
 }
 
 function toggleSort(
@@ -885,56 +1149,38 @@ function toggleSort(
   };
 }
 
-function clearErrorPatches(): PatchOp[] {
-  return [
-    { op: "setText", targetId: "error-name", value: "" },
-    { op: "setText", targetId: "error-email", value: "" },
-    { op: "setText", targetId: "error-form", value: "" },
-    {
-      op: "setAttr",
-      targetId: "input-name",
-      name: "aria-invalid",
-      value: null,
-    },
-    {
-      op: "setAttr",
-      targetId: "input-email",
-      name: "aria-invalid",
-      value: null,
-    },
-  ];
+function createUserFormStateFromValidationErrors(
+  validationErrors: Record<string, string[]>,
+) {
+  const nextState = makeInitialCreateUserFormState();
+
+  for (const [fieldName, errors] of Object.entries(validationErrors)) {
+    const message = errors.join("; ");
+    if (fieldName === "name") {
+      nextState.nameError = message;
+      continue;
+    }
+
+    if (fieldName === "email") {
+      nextState.emailError = message;
+      continue;
+    }
+
+    nextState.formError = nextState.formError
+      ? `${nextState.formError}; ${message}`
+      : message;
+  }
+
+  return nextState;
 }
 
-function setFormErrors(error: FormActionError): PatchOp[] {
-  return [
-    {
-      op: "setText",
-      targetId: "error-name",
-      value: error.fieldErrors.name ?? "",
-    },
-    {
-      op: "setText",
-      targetId: "error-email",
-      value: error.fieldErrors.email ?? "",
-    },
-    {
-      op: "setText",
-      targetId: "error-form",
-      value: error.formError ?? "",
-    },
-    {
-      op: "setAttr",
-      targetId: "input-name",
-      name: "aria-invalid",
-      value: error.fieldErrors.name ? "true" : null,
-    },
-    {
-      op: "setAttr",
-      targetId: "input-email",
-      name: "aria-invalid",
-      value: error.fieldErrors.email ? "true" : null,
-    },
-  ];
+function createUserFormStateFromServerError(error: FormActionError) {
+  return {
+    ...makeInitialCreateUserFormState(),
+    nameError: error.fieldErrors.name ?? "",
+    emailError: error.fieldErrors.email ?? "",
+    formError: error.formError ?? "",
+  };
 }
 
 export async function onAppNavigate({
@@ -1020,7 +1266,9 @@ export async function onLoadUsersPanel({
 export async function onExternalPagePrev({
   runtime,
 }: HelixClientHandlerContext): Promise<void> {
-  const state = readExternalPageState();
+  syncExternalStateFromDom(runtime);
+
+  const state = runtime.externalState;
   if (state.page <= 1) {
     return;
   }
@@ -1035,7 +1283,9 @@ export async function onExternalPagePrev({
 export async function onExternalPageNext({
   runtime,
 }: HelixClientHandlerContext): Promise<void> {
-  const state = readExternalPageState();
+  syncExternalStateFromDom(runtime);
+
+  const state = runtime.externalState;
   if (state.page >= state.totalPages) {
     return;
   }
@@ -1050,7 +1300,9 @@ export async function onExternalPageNext({
 export async function onPostsPagePrev({
   runtime,
 }: HelixClientHandlerContext): Promise<void> {
-  const state = readPostsPageState();
+  syncPostsStateFromDom(runtime);
+
+  const state = runtime.postsState;
   if (state.page <= 1) {
     return;
   }
@@ -1060,7 +1312,9 @@ export async function onPostsPagePrev({
 export async function onPostsPageNext({
   runtime,
 }: HelixClientHandlerContext): Promise<void> {
-  const state = readPostsPageState();
+  syncPostsStateFromDom(runtime);
+
+  const state = runtime.postsState;
   if (state.page >= state.totalPages) {
     return;
   }
@@ -1075,13 +1329,13 @@ export async function onExternalDetailOpen({
   if (!Number.isInteger(rowId) || rowId <= 0) {
     return;
   }
-  await openExternalDetail(runtime, rowId, "external-detail-open", "network");
+  await openExternalDetail(runtime, rowId);
 }
 
 export async function onExternalDetailClose({
   runtime,
 }: HelixClientHandlerContext): Promise<void> {
-  closeExternalDetail(runtime, "external-detail-close", "input");
+  closeExternalDetail(runtime);
 }
 
 export async function onCreateUser({
@@ -1089,6 +1343,12 @@ export async function onCreateUser({
   runtime,
   element,
 }: HelixClientHandlerContext): Promise<void> {
+  installRuntimeStateReactivity(runtime);
+
+  if (runtime.createUserForm.submitting) {
+    return;
+  }
+
   const form =
     event.target instanceof HTMLFormElement
       ? event.target
@@ -1118,108 +1378,51 @@ export async function onCreateUser({
   // Validate
   const validationErrors = helixForm.validateAll();
   if (Object.keys(validationErrors).length > 0) {
-    // Show validation errors
-    const errorPatches: PatchOp[] = [];
-    for (const [fieldName, errors] of Object.entries(validationErrors)) {
-      errorPatches.push({
-        op: "setText",
-        targetId: `error-${fieldName}`,
-        value: errors.join("; "),
-      });
-      errorPatches.push({
-        op: "setAttr",
-        targetId: `input-${fieldName}`,
-        name: "aria-invalid",
-        value: "true",
-      });
-    }
-
-    schedulePatchBatch(
-      runtime,
-      "create-user-validation-error",
-      "input",
-      errorPatches,
-      ["create-user-form"],
-    );
+    runtime.createUserForm =
+      createUserFormStateFromValidationErrors(validationErrors);
     return;
   }
 
-  // Clear previous errors before attempting submission
-  schedulePatchBatch(
-    runtime,
-    "create-user-clear",
-    "input",
-    clearErrorPatches(),
-    ["create-user-form"],
-  );
+  runtime.createUserForm = {
+    ...makeInitialCreateUserFormState(),
+    status: "Creating user…",
+    submitting: true,
+  };
 
   try {
-    await withOptimistic(
-      payload,
-      {
-        // Applied immediately: disable button + show pending status
-        apply: (_input) => [
-          { op: "setText", targetId: "form-status", value: "Creating user…" },
-          {
-            op: "setAttr",
-            targetId: "submit-create",
-            name: "disabled",
-            value: "disabled",
-          },
-        ],
-        // On success: clear status + re-enable button (row refresh happens below)
-        confirm: (_input, _result) => [
-          { op: "setText", targetId: "form-status", value: "User created." },
-          {
-            op: "setAttr",
-            targetId: "submit-create",
-            name: "disabled",
-            value: null,
-          },
-        ],
-        // On failure: snap back button, surface the server error
-        rollback: (_input, error) => {
-          const serverError =
-            error instanceof ServerActionError ? error.body : null;
-          return [
-            {
-              op: "setAttr",
-              targetId: "submit-create",
-              name: "disabled",
-              value: null,
-            },
-            { op: "setText", targetId: "form-status", value: "" },
-            ...(serverError
-              ? setFormErrors(serverError)
-              : [
-                  {
-                    op: "setText",
-                    targetId: "error-form",
-                    value: "An unexpected error occurred.",
-                  } as PatchOp,
-                ]),
-          ];
-        },
-      },
-      async (input) => {
-        const response = await fetch("/actions/create-user", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(input),
-        });
-        if (!response.ok) {
-          const body = (await response.json()) as FormActionError;
-          throw new ServerActionError(body);
-        }
-        return response.json() as Promise<{ ok: true; id: number }>;
-      },
-      { patchRuntime: runtime.patchRuntime, scheduler: runtime.scheduler },
-    );
+    const response = await fetch("/actions/create-user", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const body = (await response.json()) as FormActionError;
+      throw new ServerActionError(body);
+    }
+
+    await (response.json() as Promise<{ ok: true; id: number }>);
+
+    runtime.createUserForm = {
+      ...makeInitialCreateUserFormState(),
+      status: "User created.",
+    };
 
     form.reset();
-    await refreshUsers(runtime, "create-user-refresh", "network");
-  } catch {
-    // Rollback patches already scheduled by withOptimistic — nothing extra needed.
+    try {
+      await refreshUsers(runtime, "create-user-refresh", "network");
+    } catch (error: unknown) {
+      console.error("[Helix] create-user refresh error", error);
+    }
+  } catch (error: unknown) {
+    if (error instanceof ServerActionError) {
+      runtime.createUserForm = createUserFormStateFromServerError(error.body);
+      return;
+    }
+
+    runtime.createUserForm = {
+      ...makeInitialCreateUserFormState(),
+      formError: "An unexpected error occurred.",
+    };
   }
 }
 

@@ -1,10 +1,10 @@
 import { view } from "../../helix/index.js";
-import type { BindingMap } from "../../helix/index.js";
 import type { UsersPage, User, UserStats } from "../domain.js";
 import { escapeHtml } from "../utils/html.js";
 import { uiButton, uiInput } from "../../helix/ui.js";
 import { uiDataTable } from "../../helix/components/table.js";
 import type { UIDataTableColumnDef } from "../../helix/components/table.js";
+import { buildAppBindingMap } from "./binding-map.generated.js";
 
 const usersTableColumns: UIDataTableColumnDef<User>[] = [
   {
@@ -157,112 +157,7 @@ ${usersPageView.render({ usersPage })}
 </section>`;
 }
 
-export function buildAppBindingMap(): BindingMap {
-  return {
-    events: {
-      "app-nav": {
-        id: "app-nav",
-        event: "click",
-        actionId: "navigate",
-        chunk: "/client/actions.js",
-        handlerExport: "onAppNavigate",
-        preventDefault: true,
-      },
-      "page-prev": {
-        id: "page-prev",
-        event: "click",
-        actionId: "setPage",
-        chunk: "/client/actions.js",
-        handlerExport: "onPrevPage",
-      },
-      "page-next": {
-        id: "page-next",
-        event: "click",
-        actionId: "setPage",
-        chunk: "/client/actions.js",
-        handlerExport: "onNextPage",
-      },
-      "sort-name": {
-        id: "sort-name",
-        event: "click",
-        actionId: "setSort",
-        chunk: "/client/actions.js",
-        handlerExport: "onSortByName",
-      },
-      "sort-email": {
-        id: "sort-email",
-        event: "click",
-        actionId: "setSort",
-        chunk: "/client/actions.js",
-        handlerExport: "onSortByEmail",
-      },
-      "create-user": {
-        id: "create-user",
-        event: "submit",
-        actionId: "createUser",
-        chunk: "/client/actions.js",
-        handlerExport: "onCreateUser",
-      },
-      "load-users-panel": {
-        id: "load-users-panel",
-        event: "click",
-        actionId: "loadUsersPanel",
-        chunk: "/client/actions.js",
-        handlerExport: "onLoadUsersPanel",
-      },
-      "external-page-prev": {
-        id: "external-page-prev",
-        event: "click",
-        actionId: "external-page",
-        chunk: "/client/actions.js",
-        handlerExport: "onExternalPagePrev",
-      },
-      "external-page-next": {
-        id: "external-page-next",
-        event: "click",
-        actionId: "external-page",
-        chunk: "/client/actions.js",
-        handlerExport: "onExternalPageNext",
-      },
-      "external-detail-open": {
-        id: "external-detail-open",
-        event: "click",
-        actionId: "external-detail",
-        chunk: "/client/actions.js",
-        handlerExport: "onExternalDetailOpen",
-      },
-      "external-detail-close": {
-        id: "external-detail-close",
-        event: "click",
-        actionId: "external-detail",
-        chunk: "/client/actions.js",
-        handlerExport: "onExternalDetailClose",
-      },
-      "posts-page-prev": {
-        id: "posts-page-prev",
-        event: "click",
-        actionId: "posts-page",
-        chunk: "/client/actions.js",
-        handlerExport: "onPostsPagePrev",
-      },
-      "posts-page-next": {
-        id: "posts-page-next",
-        event: "click",
-        actionId: "posts-page",
-        chunk: "/client/actions.js",
-        handlerExport: "onPostsPageNext",
-      },
-    },
-    lists: {
-      "users-body": { listId: "users-body", keyAttr: "data-hx-key" },
-      "external-products-body": {
-        listId: "external-products-body",
-        keyAttr: "data-hx-key",
-      },
-      "posts-body": { listId: "posts-body", keyAttr: "data-hx-key" },
-    },
-  };
-}
+export { buildAppBindingMap };
 
 export const buildUsersBindingMap = buildAppBindingMap;
 

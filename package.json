@@ -5,12 +5,20 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "check:client-imports": "node scripts/check-client-imports.mjs",
+    "gen:bindings": "npm run build && node dist/example/scripts/generate-binding-map.js",
+    "check:bindings": "npm run build && node dist/example/scripts/generate-binding-map.js --check",
+    "verify": "npm run check:client-imports && npm run build && node dist/example/scripts/generate-binding-map.js --check && node --test dist/tests",
+    "hooks:install": "node scripts/install-git-hooks.mjs",
     "start": "node dist/example/server.js",
     "dev": "npm run build && npm run start",
-    "bench": "npm run build && node dist/bench/index.js"
+    "bench": "npm run build && node dist/bench/index.js",
+    "test": "npm run build && node --test dist/tests"
   },
   "devDependencies": {
+    "@types/jsdom": "^28.0.0",
     "@types/node": "^24.0.0",
+    "jsdom": "^28.1.0",
     "typescript": "^5.8.2"
   }
 }

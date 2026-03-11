@@ -67,6 +67,8 @@ export function renderPostsPage(page: PostsPage): string {
     <span
       data-hx-id="posts-page-state"
       data-page="${page.page}"
+      data-page-size="${page.pageSize}"
+      data-total="${page.total}"
       data-total-pages="${page.totalPages}"
       hidden
     ></span>

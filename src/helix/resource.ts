@@ -17,6 +17,7 @@ interface ResourceStoreEntry<T> {
 }
 
 interface ResourceRegistryEntry {
+  matchesAnyTag(tags: readonly string[]): boolean;
   invalidateByTags(tags: readonly string[]): void;
   snapshotInto(snapshot: GraphSnapshot): void;
 }
@@ -35,6 +36,67 @@ class ResourceImpl<T, Ctx extends ResourceContext = ResourceContext> {
   private readonly policy: ResourcePolicy;
   private readonly store = new Map<string, ResourceStoreEntry<T>>();
   private readonly keyToTags = new Map<string, string[]>();
+  private readonly staticTags: readonly string[];
+
+  private fetchAndStore(
+    key: string,
+    ctx: Ctx,
+    current?: ResourceStoreEntry<T>,
+  ): Promise<T> {
+    const inflight = this.fetcher(ctx).then((value) => {
+      const tags = this.getTags(ctx);
+      const cacheEntry =
+        this.policy.cache === "none"
+          ? undefined
+          : {
+              value,
+              updatedAt: Date.now(),
+              tags,
+            };
+
+      const latest = this.store.get(key);
+      if (!latest || latest.inflight !== inflight) {
+        return value;
+      }
+
+      this.store.set(key, {
+        cacheEntry,
+        inflight,
+      });
+
+      if (cacheEntry) {
+        this.keyToTags.set(key, tags);
+      } else {
+        this.keyToTags.delete(key);
+      }
+
+      this.enforceMaxEntries();
+      return value;
+    });
+
+    this.store.set(key, {
+      ...current,
+      inflight,
+    });
+
+    void inflight.finally(() => {
+      const settled = this.store.get(key);
+      if (!settled || settled.inflight !== inflight) {
+        return;
+      }
+
+      if (settled.cacheEntry) {
+        this.store.set(key, {
+          cacheEntry: settled.cacheEntry,
+        });
+        this.enforceMaxEntries();
+      } else {
+        this.deleteKey(key);
+      }
+    });
+
+    return inflight;
+  }
 
   private deleteKey(key: string): void {
     this.store.delete(key);
@@ -45,21 +107,22 @@ class ResourceImpl<T, Ctx extends ResourceContext = ResourceContext> {
     label: string,
     keyFn: (ctx: Ctx) => unknown,
     fetcher: (ctx: Ctx) => MaybePromise<T>,
-    policy: ResourcePolicy
+    policy: ResourcePolicy,
   ) {
     this.id = nextNodeId("resource");
     this.label = label;
     this.keyFn = keyFn;
     this.fetcher = async (ctx: Ctx) => fetcher(ctx);
     this.policy = policy;
+    this.staticTags = Array.isArray(policy.tags) ? policy.tags : [];
 
     runtimeGraph.addNode({
       id: this.id,
       type: "ResourceNode",
       label,
       meta: {
-        policy
-      }
+        policy,
+      },
     });
 
     resourceRegistry.set(this.id, this);
@@ -69,7 +132,9 @@ class ResourceImpl<T, Ctx extends ResourceContext = ResourceContext> {
     if (!this.policy.tags) {
       return [];
     }
-    return typeof this.policy.tags === "function" ? this.policy.tags(ctx) : this.policy.tags;
+    return typeof this.policy.tags === "function"
+      ? this.policy.tags(ctx)
+      : this.policy.tags;
   }
 
   private isFresh(entry: ResourceCacheEntry<T>): boolean {
@@ -77,6 +142,31 @@ class ResourceImpl<T, Ctx extends ResourceContext = ResourceContext> {
       return this.policy.cache !== "none";
     }
     return Date.now() - entry.updatedAt < this.policy.staleMs;
+  }
+
+  private shouldBackgroundRevalidate(
+    entry: ResourceCacheEntry<T>,
+    now: number,
+  ): boolean {
+    if (this.policy.cache === "none") {
+      return false;
+    }
+
+    const revalidateMs = this.policy.revalidateMs;
+    if (!revalidateMs || revalidateMs <= 0) {
+      return false;
+    }
+
+    const ageMs = now - entry.updatedAt;
+    if (ageMs < revalidateMs) {
+      return false;
+    }
+
+    if (!this.policy.staleMs) {
+      return true;
+    }
+
+    return ageMs < this.policy.staleMs;
   }
 
   private pruneExpiredEntries(now: number): void {
@@ -120,6 +210,14 @@ class ResourceImpl<T, Ctx extends ResourceContext = ResourceContext> {
     if (current?.cacheEntry && this.isFresh(current.cacheEntry)) {
       this.store.delete(key);
       this.store.set(key, current);
+
+      if (
+        this.shouldBackgroundRevalidate(current.cacheEntry, now) &&
+        !current.inflight
+      ) {
+        void this.fetchAndStore(key, ctx, current).catch(() => undefined);
+      }
+
       return current.cacheEntry.value;
     }
 
@@ -127,47 +225,7 @@ class ResourceImpl<T, Ctx extends ResourceContext = ResourceContext> {
       return current.inflight;
     }
 
-    const inflight = this.fetcher(ctx).then((value) => {
-      const tags = this.getTags(ctx);
-      const cacheEntry =
-        this.policy.cache === "none"
-          ? undefined
-          : {
-              value,
-              updatedAt: Date.now(),
-              tags
-            };
-      const nextEntry: ResourceStoreEntry<T> = {
-        cacheEntry
-      };
-      this.store.set(key, nextEntry);
-      if (cacheEntry) {
-        this.keyToTags.set(key, tags);
-      } else {
-        this.keyToTags.delete(key);
-      }
-      this.enforceMaxEntries();
-      return value;
-    });
-
-    this.store.set(key, {
-      ...current,
-      inflight
-    });
-
-    try {
-      return await inflight;
-    } finally {
-      const settled = this.store.get(key);
-      if (settled?.cacheEntry) {
-        this.store.set(key, {
-          cacheEntry: settled.cacheEntry
-        });
-        this.enforceMaxEntries();
-      } else if (settled) {
-        this.deleteKey(key);
-      }
-    }
+    return this.fetchAndStore(key, ctx, current);
   }
 
   invalidateByTags(tags: readonly string[]): void {
@@ -183,6 +241,28 @@ class ResourceImpl<T, Ctx extends ResourceContext = ResourceContext> {
     }
   }
 
+  matchesAnyTag(tags: readonly string[]): boolean {
+    if (tags.length === 0) {
+      return false;
+    }
+
+    const tagSet = new Set(tags);
+
+    for (const tag of this.staticTags) {
+      if (tagSet.has(tag)) {
+        return true;
+      }
+    }
+
+    for (const savedTags of this.keyToTags.values()) {
+      if (savedTags.some((tag) => tagSet.has(tag))) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   snapshotInto(snapshot: GraphSnapshot): void {
     for (const [key, entry] of this.store) {
       if (!entry.cacheEntry) {
@@ -194,7 +274,10 @@ class ResourceImpl<T, Ctx extends ResourceContext = ResourceContext> {
   }
 }
 
-export interface ResourceHandle<T, Ctx extends ResourceContext = ResourceContext> {
+export interface ResourceHandle<
+  T,
+  Ctx extends ResourceContext = ResourceContext,
+> {
   id: string;
   read(ctx: Ctx): Promise<T>;
 }
@@ -203,18 +286,71 @@ export function resource<T, Ctx extends ResourceContext = ResourceContext>(
   label: string,
   keyFn: (ctx: Ctx) => unknown,
   fetcher: (ctx: Ctx) => MaybePromise<T>,
-  policy: ResourcePolicy
+  policy: ResourcePolicy,
 ): ResourceHandle<T, Ctx> {
   const impl = new ResourceImpl<T, Ctx>(label, keyFn, fetcher, policy);
   return {
     id: impl.id,
-    read: (ctx: Ctx) => impl.read(ctx)
+    read: (ctx: Ctx) => impl.read(ctx),
   };
 }
 
 export function invalidateResourcesByTags(tags: readonly string[]): void {
   for (const resourceImpl of resourceRegistry.values()) {
     resourceImpl.invalidateByTags(tags);
+  }
+}
+
+export function connectActionInvalidationEdges(
+  actionNodeId: string,
+  tags: readonly string[],
+): void {
+  if (tags.length === 0) {
+    return;
+  }
+
+  for (const [resourceId, resourceImpl] of resourceRegistry) {
+    if (!resourceImpl.matchesAnyTag(tags)) {
+      continue;
+    }
+
+    runtimeGraph.addEdge({
+      id: `invalidates:${actionNodeId}->${resourceId}`,
+      from: actionNodeId,
+      to: resourceId,
+      type: "invalidates",
+      meta: {
+        tags: [...tags],
+      },
+    });
+  }
+}
+
+export function invalidateResourcesByAction(
+  actionNodeId: string,
+  tags: readonly string[],
+): void {
+  if (tags.length === 0) {
+    return;
+  }
+
+  let invalidatedAny = false;
+  for (const node of runtimeGraph.getDependents(actionNodeId)) {
+    if (node.type !== "ResourceNode") {
+      continue;
+    }
+
+    const resourceImpl = resourceRegistry.get(node.id);
+    if (!resourceImpl) {
+      continue;
+    }
+
+    resourceImpl.invalidateByTags(tags);
+    invalidatedAny = true;
+  }
+
+  if (!invalidatedAny) {
+    invalidateResourcesByTags(tags);
   }
 }
 

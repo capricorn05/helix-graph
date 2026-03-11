@@ -104,7 +104,7 @@ function renderExternalProductsDataTable(
       attrs: { "data-hx-id": "external-next-btn" },
     })}
     <span data-hx-id="external-total-label">(Total rows: ${productsPage.total})</span>
-    <span data-hx-id="external-page-state" data-page="${productsPage.page}" data-total-pages="${productsPage.totalPages}" hidden></span>
+    <span data-hx-id="external-page-state" data-page="${productsPage.page}" data-page-size="${productsPage.pageSize}" data-total="${productsPage.total}" data-total-pages="${productsPage.totalPages}" hidden></span>
   </div>
 </section>
 
