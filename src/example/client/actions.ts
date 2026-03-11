@@ -175,7 +175,9 @@ function syncUsersStateFromDom(runtime: HelixClientRuntime): void {
 function syncPostsStateFromDom(runtime: HelixClientRuntime): void {
   installRuntimeStateReactivity(runtime);
 
-  const stateElement = document.querySelector('[data-hx-id="posts-page-state"]');
+  const stateElement = document.querySelector(
+    '[data-hx-id="posts-page-state"]',
+  );
   if (!(stateElement instanceof HTMLElement)) {
     return;
   }
@@ -183,17 +185,24 @@ function syncPostsStateFromDom(runtime: HelixClientRuntime): void {
   runtime.postsState = {
     page: Math.max(
       1,
-      Math.floor(parseNumeric(stateElement.dataset.page, runtime.postsState.page)),
+      Math.floor(
+        parseNumeric(stateElement.dataset.page, runtime.postsState.page),
+      ),
     ),
     pageSize: Math.max(
       1,
       Math.floor(
-        parseNumeric(stateElement.dataset.pageSize, runtime.postsState.pageSize),
+        parseNumeric(
+          stateElement.dataset.pageSize,
+          runtime.postsState.pageSize,
+        ),
       ),
     ),
     total: Math.max(
       0,
-      Math.floor(parseNumeric(stateElement.dataset.total, runtime.postsState.total)),
+      Math.floor(
+        parseNumeric(stateElement.dataset.total, runtime.postsState.total),
+      ),
     ),
     totalPages: Math.max(
       1,
@@ -254,7 +263,9 @@ function syncExternalStateFromDom(runtime: HelixClientRuntime): void {
 function syncExternalDetailStateFromDom(runtime: HelixClientRuntime): void {
   installRuntimeStateReactivity(runtime);
 
-  const overlay = document.querySelector('[data-hx-id="external-modal-overlay"]');
+  const overlay = document.querySelector(
+    '[data-hx-id="external-modal-overlay"]',
+  );
   if (!(overlay instanceof HTMLElement)) {
     return;
   }

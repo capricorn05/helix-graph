@@ -65,8 +65,16 @@ resumeClientApp<HelixClientRuntime>({
     defineCellBackedProperty(runtime, "state", stateCell);
     defineCellBackedProperty(runtime, "postsState", postsStateCell);
     defineCellBackedProperty(runtime, "externalState", externalStateCell);
-    defineCellBackedProperty(runtime, "externalDetail", externalDetailStateCell);
-    defineCellBackedProperty(runtime, "createUserForm", createUserFormStateCell);
+    defineCellBackedProperty(
+      runtime,
+      "externalDetail",
+      externalDetailStateCell,
+    );
+    defineCellBackedProperty(
+      runtime,
+      "createUserForm",
+      createUserFormStateCell,
+    );
 
     return runtime;
   },

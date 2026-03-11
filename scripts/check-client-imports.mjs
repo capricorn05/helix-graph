@@ -40,7 +40,9 @@ function collectViolations(sourceFile) {
       return;
     }
 
-    const position = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
+    const position = sourceFile.getLineAndCharacterOfPosition(
+      node.getStart(sourceFile),
+    );
     violations.push({
       filePath: sourceFile.fileName,
       line: position.line + 1,
@@ -90,7 +92,11 @@ function collectViolations(sourceFile) {
       ts.isLiteralTypeNode(node.argument) &&
       ts.isStringLiteral(node.argument.literal)
     ) {
-      addViolation(node.argument.literal, node.argument.literal.text, "import type");
+      addViolation(
+        node.argument.literal,
+        node.argument.literal.text,
+        "import type",
+      );
     }
 
     ts.forEachChild(node, visit);

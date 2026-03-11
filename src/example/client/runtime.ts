@@ -5,7 +5,12 @@ import type {
   GraphSnapshot,
   HelixEventBinding,
 } from "../../helix/types.js";
-import { cell, derived, type Cell, type Derived } from "../../helix/reactive.js";
+import {
+  cell,
+  derived,
+  type Cell,
+  type Derived,
+} from "../../helix/reactive.js";
 
 const DEFAULT_USERS_PAGE_SIZE = 6;
 const DEFAULT_POSTS_PAGE_SIZE = 10;
@@ -169,11 +174,16 @@ export function makeInitialState(snapshot: GraphSnapshot): UsersClientState {
   };
 }
 
-export function makeInitialPostsState(snapshot: GraphSnapshot): PostsClientState {
+export function makeInitialPostsState(
+  snapshot: GraphSnapshot,
+): PostsClientState {
   const posts = asRecord(snapshot.cells.posts);
   return {
     page: normalizePositiveInteger(posts?.page, 1),
-    pageSize: normalizePositiveInteger(posts?.pageSize, DEFAULT_POSTS_PAGE_SIZE),
+    pageSize: normalizePositiveInteger(
+      posts?.pageSize,
+      DEFAULT_POSTS_PAGE_SIZE,
+    ),
     total: normalizeNonNegativeInteger(posts?.total, 0),
     totalPages: normalizePositiveInteger(posts?.totalPages, 1),
   };
@@ -230,7 +240,9 @@ export function makeStateCell(snapshot: GraphSnapshot): Cell<UsersClientState> {
   });
 }
 
-export function makePostsStateCell(snapshot: GraphSnapshot): Cell<PostsClientState> {
+export function makePostsStateCell(
+  snapshot: GraphSnapshot,
+): Cell<PostsClientState> {
   return cell(makeInitialPostsState(snapshot), {
     scope: "view",
     name: "posts-client-state",
@@ -392,10 +404,10 @@ export function makeExternalDetailDerivedState(
   stateCell: Cell<ExternalDetailState>,
 ): ExternalDetailDerivedState {
   return {
-    overlayDisplay: derived(
-      () => (stateCell.get().open ? "flex" : "none"),
-      { scope: "view", name: "external-detail-display" },
-    ),
+    overlayDisplay: derived(() => (stateCell.get().open ? "flex" : "none"), {
+      scope: "view",
+      name: "external-detail-display",
+    }),
     idLabel: derived(
       () => {
         const id = stateCell.get().id;
@@ -438,17 +450,17 @@ export function makeCreateUserFormDerivedState(
   stateCell: Cell<CreateUserFormState>,
 ): CreateUserFormDerivedState {
   return {
-    submitDisabled: derived(
-      () => stateCell.get().submitting,
-      { scope: "view", name: "create-user-submit-disabled" },
-    ),
-    nameInvalid: derived(
-      () => stateCell.get().nameError.length > 0,
-      { scope: "view", name: "create-user-name-invalid" },
-    ),
-    emailInvalid: derived(
-      () => stateCell.get().emailError.length > 0,
-      { scope: "view", name: "create-user-email-invalid" },
-    ),
+    submitDisabled: derived(() => stateCell.get().submitting, {
+      scope: "view",
+      name: "create-user-submit-disabled",
+    }),
+    nameInvalid: derived(() => stateCell.get().nameError.length > 0, {
+      scope: "view",
+      name: "create-user-name-invalid",
+    }),
+    emailInvalid: derived(() => stateCell.get().emailError.length > 0, {
+      scope: "view",
+      name: "create-user-email-invalid",
+    }),
   };
 }
