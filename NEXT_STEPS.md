@@ -7,7 +7,7 @@ Status update (2026-03-11): ✅ Items 1–3 completed.
 ### 1. Fix the graph edge direction bug ✅ Completed (2026-03-11)
 
 In `src/helix/reactive.ts` edges are recorded as `from: derived, to: cell` (labeled `dependsOn`).
-In `src/helix/graph.ts`, `getDependents(nodeId)` follows *outgoing* edges (`from === nodeId`).
+In `src/helix/graph.ts`, `getDependents(nodeId)` follows _outgoing_ edges (`from === nodeId`).
 When you call `getDependents(cellId)` nothing is found because the cell is always on the `to` side.
 The names `getDependents` and `getDependencies` are effectively swapped.
 
@@ -39,13 +39,13 @@ performance regressions but nothing else.
 
 Minimum coverage needed:
 
-| Module | What to test |
-|---|---|
-| `reactive.ts` | `cell`/`derived` propagation, batching, dirty marking |
-| `reconciler.ts` | keyed insert / remove / move correctness |
-| `patch.ts` | each `PatchOp` variant, target-not-found throws |
-| `resource.ts` | cache hit, stale eviction, tag invalidation, deduplication |
-| `router.ts` | static, param, and wildcard route matching |
+| Module          | What to test                                               |
+| --------------- | ---------------------------------------------------------- |
+| `reactive.ts`   | `cell`/`derived` propagation, batching, dirty marking      |
+| `reconciler.ts` | keyed insert / remove / move correctness                   |
+| `patch.ts`      | each `PatchOp` variant, target-not-found throws            |
+| `resource.ts`   | cache hit, stale eviction, tag invalidation, deduplication |
+| `router.ts`     | static, param, and wildcard route matching                 |
 
 Delivered: baseline Node test suite added for all listed modules and passing (`npm test`: 13 passing).
 
@@ -62,6 +62,7 @@ The `BindingMap` in `src/example/views/users.view.ts` must be kept in sync by ha
 This is fragile and error-prone.
 
 **Add a small codegen script** that:
+
 1. Scans all view files for `data-hx-bind="<id>"` occurrences.
 2. Scans all client action files for exported handler functions.
 3. Emits a typed `BindingMap` automatically.
@@ -79,6 +80,7 @@ Actions record `invalidates` metadata as graph nodes, but `action.run()` calls t
 walk directly — the graph edges are never consulted.
 
 **Wire the actual `UnifiedGraph` into the invalidation path** so that:
+
 - The graph drives which resources are invalidated after an action.
 - DevTools can show real propagation paths instead of just node lists.
 
@@ -94,6 +96,7 @@ The client currently resumes into a plain mutable object in `src/example/client/
 Every action handler manually mutates `runtime.state` and calls `schedulePatchBatch`.
 
 **Replace with live `cell`/`derived` primitives**:
+
 - One `cell<UsersClientState>` per page scope.
 - `derived` nodes for computed values (label text, button disabled states, etc.).
 - Let the reactive scheduler drive re-patching automatically instead of hand-wiring it in
@@ -115,6 +118,7 @@ The `view()` primitive is currently just a typed string function. The spec promi
 TSX → DOM fragments + patch tables with no VDOM diff.
 
 **Build the compiler**:
+
 1. Walk TSX, identify static vs dynamic slots.
 2. Emit a stable string template for the static shell (SSR).
 3. Emit a `BindingMap` + patch table for the dynamic slots (client activation).
@@ -141,6 +145,7 @@ checks (`npm run gen:views` and
 A `where: "server"` resource can be called from a client bundle without any error.
 
 **Add enforcement**:
+
 - Build-time: the compiler (or a lint rule) should reject client imports of server-only resources.
 - Runtime: a guard in `resource.read()` that throws if `where === "server"` and
   `typeof window !== "undefined"`.

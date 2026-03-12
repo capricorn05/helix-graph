@@ -93,7 +93,10 @@ function extractSeedPosts(payload: unknown): PostRow[] | null {
   return rows.length > 0 ? rows : null;
 }
 
-async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
+async function fetchWithTimeout(
+  url: string,
+  timeoutMs: number,
+): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => {
     controller.abort();
@@ -126,7 +129,10 @@ function buildPostsPage(
 
 async function fetchSeedPosts(): Promise<PostRow[]> {
   try {
-    const response = await fetchWithTimeout(POSTS_SEED_URL, POSTS_FETCH_TIMEOUT_MS);
+    const response = await fetchWithTimeout(
+      POSTS_SEED_URL,
+      POSTS_FETCH_TIMEOUT_MS,
+    );
     if (!response.ok) {
       throw new Error(`Failed to fetch posts: ${response.status}`);
     }

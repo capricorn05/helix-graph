@@ -186,22 +186,16 @@ test("resource with where=server rejects client runtime", async () => {
 test("posts resource falls back to offline seeds when fetch fails", async () => {
   resetPostsStoreForTests();
 
-  const restoreFetch = mockGlobalValue(
-    "fetch",
-    (async () => {
-      throw new TypeError("fetch failed");
-    }) as typeof fetch,
-  );
+  const restoreFetch = mockGlobalValue("fetch", (async () => {
+    throw new TypeError("fetch failed");
+  }) as typeof fetch);
   const warnings: string[] = [];
-  const restoreWarn = mockGlobalValue(
-    "console",
-    {
-      ...console,
-      warn: (...args: unknown[]) => {
-        warnings.push(args.map((value) => String(value)).join(" "));
-      },
-    } as typeof console,
-  );
+  const restoreWarn = mockGlobalValue("console", {
+    ...console,
+    warn: (...args: unknown[]) => {
+      warnings.push(args.map((value) => String(value)).join(" "));
+    },
+  } as typeof console);
 
   try {
     const page = await postsResource.read({
