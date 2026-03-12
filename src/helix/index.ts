@@ -20,3 +20,5 @@ export * from "./router.js";
 export * from "./client-router.js";
 export * from "./resume.js";
 export * from "./node-http.js";
+export * from "./placement.js";
+export * from "./view-compiler.js";

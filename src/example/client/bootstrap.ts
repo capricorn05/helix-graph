@@ -12,6 +12,8 @@ import {
   makeStateCell,
   type HelixClientRuntime,
 } from "./runtime.js";
+import "./interactions.js";
+import "./external-grid.js";
 
 function defineCellBackedProperty<T>(
   target: object,

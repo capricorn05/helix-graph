@@ -10,6 +10,25 @@ function sleep(ms: number): Promise<void> {
   });
 }
 
+async function withClientWindow<T>(run: () => Promise<T>): Promise<T> {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, "window");
+  Object.defineProperty(globalThis, "window", {
+    value: {},
+    configurable: true,
+    writable: true,
+  });
+
+  try {
+    return await run();
+  } finally {
+    if (descriptor) {
+      Object.defineProperty(globalThis, "window", descriptor);
+    } else {
+      delete (globalThis as { window?: unknown }).window;
+    }
+  }
+}
+
 test("action idempotency deduplicates concurrent inflight runs", async () => {
   let handlerCalls = 0;
 
@@ -78,4 +97,21 @@ test("action invalidation is wired through graph resource edges", async () => {
 
   assert.equal(await users.read({ page: 1 }), 2);
   assert.equal(fetchCalls, 2);
+});
+
+test("action with where=server rejects client runtime", async () => {
+  const serverOnly = action<{ ok: true }, { ok: true }>(
+    "users-action-server-only",
+    async () => ({ ok: true }),
+    {
+      where: "server",
+    },
+  );
+
+  await withClientWindow(async () => {
+    await assert.rejects(
+      () => serverOnly.run({ ok: true }, {}),
+      /Invalid action placement/,
+    );
+  });
 });

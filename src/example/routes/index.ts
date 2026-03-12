@@ -13,7 +13,10 @@ import {
   handleAbout,
   handleSearch,
   handleReports,
+  handleInteractions,
+  handleExternalGrid,
   handlePosts,
+  handlePostsNew,
   handleExternalData,
   handleUsersPanelComponent,
   handleAppCoreComponent,
@@ -24,6 +27,7 @@ import {
   handleUsersApi,
   handleUserDetailApi,
   handleCreateUser,
+  handleCreatePost,
   handleUserStats,
   handleExternalDataApi,
   handleExternalDataDetailApi,
@@ -42,6 +46,7 @@ import { handleStaticFile } from "../handlers/static.handler.js";
 
 // Pages
 const postsRoute = defineRoute("GET", "/posts", handlePosts);
+const postsNewRoute = defineRoute("GET", "/posts/new", handlePostsNew);
 const homeRoute = defineRoute("GET", "/", handleHome);
 const userDetailRoute = defineRoute("GET", "/users/:id", handleUserDetail);
 const userEditRoute = defineRoute("GET", "/users/:id/edit", handleUserEdit);
@@ -50,6 +55,16 @@ const settingsRoute = defineRoute("GET", "/settings", handleSettings);
 const aboutRoute = defineRoute("GET", "/about", handleAbout);
 const searchRoute = defineRoute("GET", "/search", handleSearch);
 const reportsRoute = defineRoute("GET", "/reports", handleReports);
+const interactionsRoute = defineRoute(
+  "GET",
+  "/interactions",
+  handleInteractions,
+);
+const externalGridRoute = defineRoute(
+  "GET",
+  "/external-grid",
+  handleExternalGrid,
+);
 const externalDataRoute = defineRoute(
   "GET",
   "/external-data",
@@ -90,6 +105,11 @@ const createUserRoute = defineRoute(
   "/actions/create-user",
   handleCreateUser,
 );
+const createPostRoute = defineRoute(
+  "POST",
+  "/actions/create-post",
+  handleCreatePost,
+);
 const updateUserRoute = defineRoute("POST", "/api/users/:id", handleUpdateUser);
 const deleteUserRoute = defineRoute(
   "DELETE",
@@ -123,7 +143,10 @@ export const router = createRouter([
   aboutRoute,
   searchRoute,
   reportsRoute,
+  interactionsRoute,
+  externalGridRoute,
   externalDataRoute,
+  postsNewRoute,
   postsRoute,
   usersPanelComponentRoute,
   appCoreComponentRoute,
@@ -135,6 +158,7 @@ export const router = createRouter([
   apiExternalDataDetailRoute,
   apiPostsRoute,
   createUserRoute,
+  createPostRoute,
   updateUserRoute,
   deleteUserRoute,
   activateUserRoute,

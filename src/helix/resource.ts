@@ -1,4 +1,5 @@
 import { nextNodeId, runtimeGraph } from "./graph.js";
+import { enforceResourcePlacement } from "./placement.js";
 import type { GraphSnapshot, ResourcePolicy } from "./types.js";
 
 type MaybePromise<T> = T | Promise<T>;
@@ -202,6 +203,8 @@ class ResourceImpl<T, Ctx extends ResourceContext = ResourceContext> {
   }
 
   async read(ctx: Ctx): Promise<T> {
+    enforceResourcePlacement(this.label, this.policy);
+
     const key = stableKeyToString(this.keyFn(ctx));
     const now = Date.now();
     this.pruneExpiredEntries(now);

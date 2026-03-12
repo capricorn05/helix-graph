@@ -2,6 +2,8 @@ import type { User, UsersPage } from "../domain.js";
 import { uiDataTable } from "../../helix/components/table.js";
 import type { UIDataTableColumnDef } from "../../helix/components/table.js";
 import { escapeHtml } from "../utils/html.js";
+import { renderReportsSummaryCompiledView } from "./compiled/reports-summary.compiled.js";
+import { renderReportsCompiledView } from "./compiled/reports.compiled.js";
 
 const reportUserColumns: UIDataTableColumnDef<User>[] = [
   {
@@ -36,30 +38,15 @@ export function renderReportsPage(usersPage: UsersPage): string {
     columns: reportUserColumns,
   });
 
-  return `
-  <p>User activity and system reports.</p>
+  const summarySection = renderReportsSummaryCompiledView({
+    activeUsersOnPage,
+    pendingUsersOnPage,
+    totalPages: usersPage.totalPages,
+    page: usersPage.page,
+  });
 
-  <section>
-    <h2>User Distribution</h2>
-    <dl>
-      <dt>Active Users</dt>
-      <dd>${activeUsersOnPage} on current page</dd>
-      <dt>Pending Users</dt>
-      <dd>${pendingUsersOnPage} on current page</dd>
-      <dt>Total Pages</dt>
-      <dd>${usersPage.totalPages}</dd>
-    </dl>
-  </section>
-
-  <section>
-    <h2>Sample Users on Page ${usersPage.page}</h2>
-    ${usersTable}
-  </section>
-
-  <section>
-    <h2>Export Options</h2>
-    <p>
-      Reports are currently view-only. Export to CSV or JSON coming soon.
-    </p>
-  </section>`;
+  return renderReportsCompiledView({
+    summarySection,
+    usersTable,
+  });
 }

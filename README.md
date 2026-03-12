@@ -128,6 +128,19 @@ const form = new HelixForm(document.getElementById("user-form"), {
 });
 ```
 
+### Create Post page
+
+The admin nav now includes **New Post** (`/posts/new`) with a server-backed create form.
+
+- Form binding: `data-hx-bind="create-post"`
+- Client handler: `onCreatePost` in `src/example/client/actions.ts`
+- Server endpoint: `POST /actions/create-post`
+- Validation: `validateCreatePostInput` in `src/example/utils/http.ts`
+- Data write path: `createPostAction` → `createPost` in `src/example/resources/posts.resource.ts`
+
+After a successful submit, the client navigates back to `/posts?page=1`, and the new post
+appears at the top of the posts table.
+
 ## Example usage of framework primitives
 
 ```ts

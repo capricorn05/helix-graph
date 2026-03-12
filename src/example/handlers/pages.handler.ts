@@ -26,6 +26,9 @@ import {
 import { renderAdminLayout } from "../views/admin-layout.js";
 import { POSTS_PAGE_SIZE, postsResource } from "../resources/posts.resource.js";
 import { renderPostsPage } from "../views/posts.js";
+import { renderPostsCreatePage } from "../views/posts-create.js";
+import { renderInteractionsPage } from "../views/interactions.js";
+import { renderExternalGridPage } from "../views/external-grid.js";
 
 const appBindingMap = buildAppBindingMap();
 
@@ -56,6 +59,36 @@ function parseCoreTargetUrl(baseUrl: URL, rawPath: string | null): URL | null {
 }
 
 async function renderAdminCoreForUrl(url: URL): Promise<AdminCoreView | null> {
+  if (url.pathname === "/external-grid") {
+    const page = parsePage(url.searchParams.get("page"));
+    const productsPage = await externalProductsResource.read({
+      page,
+      pageSize: EXTERNAL_PRODUCTS_PAGE_SIZE,
+    });
+
+    return {
+      title: "External Grid",
+      content: renderExternalGridPage(productsPage),
+      snapshotCells: {},
+    };
+  }
+
+  if (url.pathname === "/interactions") {
+    return {
+      title: "Interactions",
+      content: renderInteractionsPage(),
+      snapshotCells: {},
+    };
+  }
+
+  if (url.pathname === "/posts/new") {
+    return {
+      title: "Create Post",
+      content: renderPostsCreatePage(),
+      snapshotCells: {},
+    };
+  }
+
   if (url.pathname === "/posts") {
     const page = parsePage(url.searchParams.get("page"));
     const postsPage = await postsResource.read({
@@ -181,6 +214,39 @@ async function sendAdminPage(
 }
 
 export async function handlePosts(ctx: RouteContext): Promise<void> {
+  const view = await renderAdminCoreForUrl(ctx.url);
+  if (!view) {
+    ctx.response.statusCode = 404;
+    ctx.response.end("Not found");
+    return;
+  }
+
+  await sendAdminPage(ctx, view);
+}
+
+export async function handlePostsNew(ctx: RouteContext): Promise<void> {
+  const view = await renderAdminCoreForUrl(ctx.url);
+  if (!view) {
+    ctx.response.statusCode = 404;
+    ctx.response.end("Not found");
+    return;
+  }
+
+  await sendAdminPage(ctx, view);
+}
+
+export async function handleInteractions(ctx: RouteContext): Promise<void> {
+  const view = await renderAdminCoreForUrl(ctx.url);
+  if (!view) {
+    ctx.response.statusCode = 404;
+    ctx.response.end("Not found");
+    return;
+  }
+
+  await sendAdminPage(ctx, view);
+}
+
+export async function handleExternalGrid(ctx: RouteContext): Promise<void> {
   const view = await renderAdminCoreForUrl(ctx.url);
   if (!view) {
     ctx.response.statusCode = 404;

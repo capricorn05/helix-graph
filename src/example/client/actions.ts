@@ -1349,6 +1349,87 @@ export async function onExternalDetailClose({
   closeExternalDetail(runtime);
 }
 
+function setTextByTargetId(targetId: string, value: string): void {
+  const element = document.querySelector(`[data-hx-id="${targetId}"]`);
+  if (!(element instanceof HTMLElement)) {
+    return;
+  }
+
+  element.textContent = value;
+}
+
+function clearCreatePostMessages(): void {
+  setTextByTargetId("create-post-error-user-id", "");
+  setTextByTargetId("create-post-error-title", "");
+  setTextByTargetId("create-post-error-body", "");
+  setTextByTargetId("create-post-error-form", "");
+  setTextByTargetId("create-post-status", "");
+}
+
+export async function onCreatePost({
+  event,
+  runtime,
+  element,
+}: HelixClientHandlerContext): Promise<void> {
+  const form =
+    event.target instanceof HTMLFormElement
+      ? event.target
+      : element.closest("form");
+  if (!(form instanceof HTMLFormElement)) {
+    throw new Error("Create post handler requires a form target");
+  }
+
+  clearCreatePostMessages();
+  setTextByTargetId("create-post-status", "Creating post…");
+
+  const formData = new FormData(form);
+  const payload = {
+    userId: Number(formData.get("userId") ?? 0),
+    title: String(formData.get("title") ?? ""),
+    body: String(formData.get("body") ?? ""),
+  };
+
+  try {
+    const response = await fetch("/actions/create-post", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const body = (await response.json()) as FormActionError;
+      throw new ServerActionError(body);
+    }
+
+    await (response.json() as Promise<{ ok: true; id: number }>);
+    await loadAdminCore(runtime, "/posts?page=1", true);
+  } catch (error: unknown) {
+    setTextByTargetId("create-post-status", "");
+
+    if (error instanceof ServerActionError) {
+      setTextByTargetId(
+        "create-post-error-user-id",
+        error.body.fieldErrors.userId ?? "",
+      );
+      setTextByTargetId(
+        "create-post-error-title",
+        error.body.fieldErrors.title ?? "",
+      );
+      setTextByTargetId(
+        "create-post-error-body",
+        error.body.fieldErrors.body ?? "",
+      );
+      setTextByTargetId("create-post-error-form", error.body.formError ?? "");
+      return;
+    }
+
+    setTextByTargetId(
+      "create-post-error-form",
+      "An unexpected error occurred.",
+    );
+  }
+}
+
 export async function onCreateUser({
   event,
   runtime,

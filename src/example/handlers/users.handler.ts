@@ -5,16 +5,13 @@ import {
   userDetailResource,
 } from "../resources/users.resource.js";
 import {
-  userDetailView,
   buildAppBindingMap,
+  renderUserDetailPage,
+  renderUserEditPage,
   renderUsersPageContent,
 } from "../views/users.view.js";
 import { renderAdminLayout } from "../views/admin-layout.js";
-import {
-  renderDocumentHead,
-  renderPageEnd,
-  escapeHtml,
-} from "../utils/html.js";
+import { renderDocumentHead, renderPageEnd } from "../utils/html.js";
 import { resolveUsersQuery } from "../utils/query.js";
 import { streamHtmlSegments } from "../../helix/index.js";
 
@@ -79,7 +76,7 @@ export async function handleUserDetail(
   const bindingMap: BindingMap = { events: {}, lists: {} };
   await streamHtmlSegments(ctx.response, [
     renderDocumentHead(user.name),
-    userDetailView.render({ user }),
+    renderUserDetailPage(user),
     renderPageEnd(snapshot, bindingMap),
   ]);
   ctx.response.end();
@@ -116,22 +113,7 @@ export async function handleUserEdit(
 
   await streamHtmlSegments(ctx.response, [
     renderDocumentHead(`Edit ${user.name}`),
-    `<main>
-  <nav><a href="/">← All users</a></nav>
-  <h2>Edit User</h2>
-  <form method="POST" action="/api/users/${user.id}" novalidate>
-    <label>Name<input name="name" value="${escapeHtml(user.name)}" required /></label>
-    <label>Email<input name="email" type="email" value="${escapeHtml(user.email)}" required /></label>
-    <label>
-      Status
-      <select name="status">
-        <option value="active"  ${user.status === "active" ? "selected" : ""}>Active</option>
-        <option value="pending" ${user.status === "pending" ? "selected" : ""}>Pending</option>
-      </select>
-    </label>
-    <button type="submit">Save Changes</button>
-  </form>
-</main>`,
+    renderUserEditPage(user),
     renderPageEnd(snapshot, bindingMap),
   ]);
   ctx.response.end();

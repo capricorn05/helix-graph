@@ -5,6 +5,9 @@ import { uiButton, uiInput } from "../../helix/ui.js";
 import { uiDataTable } from "../../helix/components/table.js";
 import type { UIDataTableColumnDef } from "../../helix/components/table.js";
 import { buildAppBindingMap } from "./binding-map.generated.js";
+import { renderUsersPageContentCompiledView } from "./compiled/users-page-content.compiled.js";
+import { renderUserDetailCompiledView } from "./compiled/user-detail.compiled.js";
+import { renderUserEditCompiledView } from "./compiled/user-edit.compiled.js";
 
 const usersTableColumns: UIDataTableColumnDef<User>[] = [
   {
@@ -105,56 +108,74 @@ export const usersPageView = view<{ usersPage: UsersPage }>(
   },
 );
 
-export const userDetailView = view<{ user: User }>(
-  "user-detail",
-  ({ user }) => {
-    return `<main>
-  <nav><a href="/">← All users</a></nav>
-  <h1>${escapeHtml(user.name)}</h1>
-  <dl>
-    <dt>Email</dt>  <dd>${escapeHtml(user.email)}</dd>
-    <dt>Status</dt> <dd><span class="status-${escapeHtml(user.status)}">${escapeHtml(user.status)}</span></dd>
-    <dt>ID</dt>     <dd>${user.id}</dd>
-  </dl>
-</main>`;
-  },
-);
+function renderUserStatusOptionsHtml(status: User["status"]): string {
+  const activeSelected = status === "active" ? " selected" : "";
+  const pendingSelected = status === "pending" ? " selected" : "";
+
+  return `<option value="active"${activeSelected}>Active</option><option value="pending"${pendingSelected}>Pending</option>`;
+}
+
+export function renderUserDetailPage(user: User): string {
+  return renderUserDetailCompiledView({
+    userName: user.name,
+    userEmail: user.email,
+    userStatus: user.status,
+    userStatusClass: `status-${user.status}`,
+    userId: user.id,
+  });
+}
+
+export function renderUserEditPage(user: User): string {
+  return renderUserEditCompiledView({
+    userId: user.id,
+    userName: user.name,
+    userEmail: user.email,
+    statusOptionsHtml: renderUserStatusOptionsHtml(user.status),
+  });
+}
 
 export function renderUsersPageContent(usersPage: UsersPage): string {
-  return `<p>Streaming SSR + resumable activation + patch-first updates.</p>
-
-${usersPageView.render({ usersPage })}
-
-<section>
-  <h2>Add user</h2>
-  <form data-hx-id="create-user-form" data-hx-bind="create-user" novalidate>
-    <label>Name${uiInput({ name: "name", attrs: { "data-hx-id": "input-name" } })}</label>
-    <p class="error" data-hx-id="error-name"></p>
-    <label>Email${uiInput({ name: "email", type: "email", attrs: { "data-hx-id": "input-email" } })}</label>
-    <p class="error" data-hx-id="error-email"></p>
-    ${uiButton({
+  return renderUsersPageContentCompiledView({
+    usersSectionHtml: usersPageView.render({ usersPage }),
+    nameInputHtml: uiInput({
+      name: "name",
+      attrs: { "data-hx-id": "input-name" },
+    }),
+    emailInputHtml: uiInput({
+      name: "email",
+      type: "email",
+      attrs: { "data-hx-id": "input-email" },
+    }),
+    submitButtonHtml: uiButton({
       label: "Create User",
       type: "submit",
       attrs: { "data-hx-id": "submit-create" },
-    })}
-    <p class="error" data-hx-id="error-form"></p>
-    <p data-hx-id="form-status"></p>
-  </form>
-</section>
-
-<section>
-  <h2>Live component load</h2>
-  <p>Load server-rendered content into this section without a full page reload.</p>
-  <div class="toolbar">
-    ${uiButton({ label: "Summary", bind: "load-users-panel", variant: "secondary", attrs: { "data-panel": "summary" } })}
-    ${uiButton({ label: "Reports", bind: "load-users-panel", variant: "secondary", attrs: { "data-panel": "reports" } })}
-    ${uiButton({ label: "External Data", bind: "load-users-panel", variant: "secondary", attrs: { "data-panel": "external-data" } })}
-    ${uiButton({ label: "Help", bind: "load-users-panel", variant: "secondary", attrs: { "data-panel": "help" } })}
-  </div>
-  <div data-hx-id="users-live-panel" aria-live="polite">
-    <p>Select a panel above to load this section in place.</p>
-  </div>
-</section>`;
+    }),
+    summaryPanelButtonHtml: uiButton({
+      label: "Summary",
+      bind: "load-users-panel",
+      variant: "secondary",
+      attrs: { "data-panel": "summary" },
+    }),
+    reportsPanelButtonHtml: uiButton({
+      label: "Reports",
+      bind: "load-users-panel",
+      variant: "secondary",
+      attrs: { "data-panel": "reports" },
+    }),
+    externalDataPanelButtonHtml: uiButton({
+      label: "External Data",
+      bind: "load-users-panel",
+      variant: "secondary",
+      attrs: { "data-panel": "external-data" },
+    }),
+    helpPanelButtonHtml: uiButton({
+      label: "Help",
+      bind: "load-users-panel",
+      variant: "secondary",
+      attrs: { "data-panel": "help" },
+    }),
+  });
 }
 
 export { buildAppBindingMap };

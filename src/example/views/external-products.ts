@@ -5,6 +5,8 @@ import type {
 import { uiButton } from "../../helix/ui.js";
 import { uiDataTable } from "../../helix/components/table.js";
 import type { UIDataTableColumnDef } from "../../helix/components/table.js";
+import { renderExternalProductsCompiledView } from "./compiled/external-products.compiled.js";
+import { renderExternalProductsComponentCompiledView } from "./compiled/external-products-component.compiled.js";
 
 const externalProductColumns: UIDataTableColumnDef<ExternalProductRow>[] = [
   {
@@ -140,21 +142,15 @@ export function renderExternalProductsPage(
 ): string {
   const tableAndModal = renderExternalProductsDataTable(productsPage);
 
-  return `<p>
-  Backend source: <strong>DummyJSON Products API</strong>. Showing a synthesized <strong>10,000-row</strong> dataset with 30 rows per page.
-</p>
-
-${tableAndModal}`;
+  return renderExternalProductsCompiledView({
+    tableAndModal,
+  });
 }
 
 export function renderExternalProductsComponent(
   productsPage: ExternalProductsPage,
 ): string {
-  return `<article>
-  <h3>External Data View</h3>
-  <p>
-    Backend source: <strong>DummyJSON Products API</strong>. Showing a synthesized <strong>10,000-row</strong> dataset with 30 rows per page.
-  </p>
-  ${renderExternalProductsDataTable(productsPage)}
-</article>`;
+  return renderExternalProductsComponentCompiledView({
+    tableAndModal: renderExternalProductsDataTable(productsPage),
+  });
 }

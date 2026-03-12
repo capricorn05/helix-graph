@@ -1,4 +1,5 @@
 import { nextNodeId, runtimeGraph } from "./graph.js";
+import { enforceActionPlacement } from "./placement.js";
 import {
   connectActionInvalidationEdges,
   invalidateResourcesByAction,
@@ -73,6 +74,8 @@ export function action<I, O, Ctx extends ActionContext = ActionContext>(
   return {
     id,
     run: async (input: I, ctx: Ctx): Promise<O> => {
+      enforceActionPlacement(name, policy);
+
       const idempotencyKey = policy.idempotency
         ? `${policy.idempotency}:${stableValueToKey(input)}`
         : null;

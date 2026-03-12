@@ -6,9 +6,12 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "check:client-imports": "node scripts/check-client-imports.mjs",
+    "check:where-boundaries": "node scripts/check-where-boundaries.mjs",
     "gen:bindings": "npm run build && node dist/example/scripts/generate-binding-map.js",
+    "gen:views": "npm run build && node dist/example/scripts/generate-compiled-views.js",
     "check:bindings": "npm run build && node dist/example/scripts/generate-binding-map.js --check",
-    "verify": "npm run check:client-imports && npm run build && node dist/example/scripts/generate-binding-map.js --check && node --test dist/tests",
+    "check:views": "npm run build && node dist/example/scripts/generate-compiled-views.js --check",
+    "verify": "npm run check:client-imports && npm run check:where-boundaries && npm run build && node dist/example/scripts/generate-binding-map.js --check && node dist/example/scripts/generate-compiled-views.js --check && node --test dist/tests",
     "hooks:install": "node scripts/install-git-hooks.mjs",
     "start": "node dist/example/server.js",
     "dev": "npm run build && npm run start",

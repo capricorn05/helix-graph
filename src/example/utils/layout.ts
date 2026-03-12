@@ -138,6 +138,45 @@ th { background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); font-we
 td a { color: hsl(var(--foreground)); text-decoration: none; font-weight: 500; }
 td a:hover { text-decoration: underline; }
 
+.excel-grid {
+  table-layout: fixed;
+}
+
+.excel-grid th,
+.excel-grid td {
+  min-width: 120px;
+}
+
+.grid-sort-btn {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: pointer;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.grid-sort-indicator {
+  color: hsl(var(--muted-foreground));
+  font-size: 0.82rem;
+}
+
+.grid-sort-btn.is-active .grid-sort-indicator {
+  color: hsl(var(--foreground));
+}
+
+.excel-grid td[contenteditable="true"] {
+  background: hsl(var(--background));
+  cursor: text;
+}
+
+.excel-grid td[contenteditable="true"]:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 2px hsl(var(--ring) / 0.35);
+  background: hsl(var(--accent));
+}
+
 .pager { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0.35rem 0 0; }
 
 form { display: grid; gap: 0.5rem; max-width: 460px; }

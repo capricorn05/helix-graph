@@ -2,6 +2,7 @@ import type { PostRow, PostsPage } from "../resources/posts.resource.js";
 import { uiButton } from "../../helix/ui.js";
 import { uiDataTable } from "../../helix/components/table.js";
 import type { UIDataTableColumnDef } from "../../helix/components/table.js";
+import { renderPostsCompiledView } from "./compiled/posts.compiled.js";
 
 const postsColumns: UIDataTableColumnDef<PostRow>[] = [
   {
@@ -42,36 +43,25 @@ export function renderPostsPage(page: PostsPage): string {
     },
   });
 
-  return `
-<section>
-  <h2>Posts</h2>
-  ${tableHtml}
-
-  <div class="pager">
-    ${uiButton({
+  return renderPostsCompiledView({
+    tableHtml,
+    prevButtonHtml: uiButton({
       label: "← Prev",
       bind: "posts-page-prev",
       variant: "secondary",
       disabled: page.page <= 1,
       attrs: { "data-hx-id": "posts-prev-btn" },
-    })}
-    <span data-hx-id="posts-page-label">Page ${page.page} / ${page.totalPages}</span>
-    ${uiButton({
+    }),
+    nextButtonHtml: uiButton({
       label: "Next →",
       bind: "posts-page-next",
       variant: "secondary",
       disabled: page.page >= page.totalPages,
       attrs: { "data-hx-id": "posts-next-btn" },
-    })}
-    <span data-hx-id="posts-total-label">(${page.total} total)</span>
-    <span
-      data-hx-id="posts-page-state"
-      data-page="${page.page}"
-      data-page-size="${page.pageSize}"
-      data-total="${page.total}"
-      data-total-pages="${page.totalPages}"
-      hidden
-    ></span>
-  </div>
-</section>`;
+    }),
+    page: page.page,
+    pageSize: page.pageSize,
+    total: page.total,
+    totalPages: page.totalPages,
+  });
 }

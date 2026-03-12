@@ -13,6 +13,13 @@ export const appBindingMap: BindingMap = {
       handlerExport: "onAppNavigate",
       preventDefault: true,
     },
+    "create-post": {
+      id: "create-post",
+      event: "submit",
+      actionId: "createPost",
+      chunk: "/client/actions.js",
+      handlerExport: "onCreatePost",
+    },
     "create-user": {
       id: "create-user",
       event: "submit",
@@ -105,6 +112,10 @@ export const appBindingMap: BindingMap = {
     },
     "posts-body": {
       listId: "posts-body",
+      keyAttr: "data-hx-key",
+    },
+    "trial-dnd-list": {
+      listId: "trial-dnd-list",
       keyAttr: "data-hx-key",
     },
     "users-body": {

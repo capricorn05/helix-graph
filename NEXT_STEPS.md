@@ -107,7 +107,9 @@ Delivered: runtime state now uses live cells/derived state not just for users pa
 
 ## Medium-term (the actual moat)
 
-### 7. View compiler – TSX to patches
+Status update (2026-03-11): 🚧 Item 7 MVP delivered, ✅ Item 8 completed.
+
+### 7. View compiler – TSX to patches 🚧 MVP delivered (2026-03-11)
 
 The `view()` primitive is currently just a typed string function. The spec promises compile-time
 TSX → DOM fragments + patch tables with no VDOM diff.
@@ -121,9 +123,19 @@ TSX → DOM fragments + patch tables with no VDOM diff.
 This is months of work but it is the feature that makes ergonomics viable at scale and
 differentiates Helix from "just another SSR framework with some HTMX-style tricks".
 
+Delivered (MVP): added a TSX compiler path that generates compiled view artifacts with a static
+template shell, dynamic patch descriptors, and inferred binding maps. Added
+`src/example/scripts/generate-compiled-views.ts`, `src/helix/view-compiler.ts`, TSX source views
+in `src/example/views-tsx/*.view.tsx`, and generated compiled page artifacts in
+`src/example/views/compiled/*.compiled.ts` (currently 12 files checked in verify).
+Integrated compiled rendering across all admin pages (Users, Dashboard, Reports, External Data,
+Posts, Search, Settings, About), plus user detail/edit route pages, with verify-time drift
+checks (`npm run gen:views` and
+`node dist/example/scripts/generate-compiled-views.js --check`).
+
 ---
 
-### 8. Enforce `where` placement at build time
+### 8. Enforce `where` placement at build time ✅ Completed (2026-03-11)
 
 `ResourcePolicy.where` and `ActionPolicy.where` are declared but never enforced.
 A `where: "server"` resource can be called from a client bundle without any error.
@@ -134,6 +146,12 @@ A `where: "server"` resource can be called from a client bundle without any erro
   `typeof window !== "undefined"`.
 
 This hardens the concurrency model and gives DevTools something meaningful to report.
+
+Delivered: runtime placement enforcement now guards `resource.read()` and `action.run()` based on
+policy `where` and active runtime placement (`src/helix/placement.ts`, `src/helix/resource.ts`,
+`src/helix/action.ts`). Added static boundary checks via `scripts/check-where-boundaries.mjs`
+and wired into `npm run verify`, plus regression tests in `src/tests/resource.test.ts` and
+`src/tests/action.test.ts`.
 
 ---
 
@@ -146,8 +164,8 @@ This hardens the concurrency model and gives DevTools something meaningful to re
 4. ✅ Code-generate the BindingMap
 5. ✅ Wire invalidation through graph edges
 6. ✅ Client state as live reactive cells
-7. View compiler (TSX → patches)
-8. Enforce `where` placement
+7. 🚧 View compiler (TSX → patches) — MVP delivered
+8. ✅ Enforce `where` placement
 ```
 
 Steps 1–6 are all tractable without a compiler and together turn the prototype into something

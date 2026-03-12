@@ -1,5 +1,6 @@
 import type { UserStats } from "../domain.js";
 import { uiCard } from "../../helix/ui.js";
+import { renderDashboardCompiledView } from "./compiled/dashboard.compiled.js";
 
 function renderMetricCard(title: string, value: string): string {
   return uiCard({
@@ -15,13 +16,10 @@ export function renderDashboardPage(stats: UserStats): string {
       ? `${Math.round((stats.active / stats.total) * 100)}%`
       : "0%";
 
-  return `
-  <p>System overview and key metrics.</p>
-
-  <section class="stats-grid">
-    ${renderMetricCard("Total Users", String(stats.total))}
-    ${renderMetricCard("Active Users", String(stats.active))}
-    ${renderMetricCard("Pending Users", String(stats.pending))}
-    ${renderMetricCard("Activation Rate", activationRate)}
-  </section>`;
+  return renderDashboardCompiledView({
+    totalUsersCard: renderMetricCard("Total Users", String(stats.total)),
+    activeUsersCard: renderMetricCard("Active Users", String(stats.active)),
+    pendingUsersCard: renderMetricCard("Pending Users", String(stats.pending)),
+    activationRateCard: renderMetricCard("Activation Rate", activationRate),
+  });
 }
