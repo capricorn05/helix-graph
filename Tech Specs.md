@@ -1,577 +1,570 @@
-Helix Graph-Native Web Framework
+# Helix Graph-Native Web Framework
 
-Technical Specification (v0.1)
+**Technical Specification (v0.1)**  
 TypeScript-only • SSR Streaming • Resumable Interactivity • Patch-First UI • Unified Causal Graph
 
-1. Purpose
+## 1. Purpose
 
 Helix is a web application framework that shifts work from runtime to compile time by:
 
-compiling TSX views into DOM fragments + direct patch operations (no VDOM diff),
-
-delivering HTML via streaming SSR,
-
-enabling resumable interactivity (attach behavior lazily on demand, rather than hydrating the whole tree),
-
-using a single unified causal graph to coordinate UI, state, data, actions, routing, caching, chunking, and observability.
+- Compiling TSX views into DOM fragments + direct patch operations (no VDOM diff)
+- Delivering HTML via streaming SSR
+- Enabling resumable interactivity (attach behavior lazily on demand, rather than hydrating the whole tree)
+- Using a single unified causal graph to coordinate UI, state, data, actions, routing, caching, chunking, and observability
 
 Target outcome: faster time-to-usable pages, lower JS execution on load, higher responsiveness (INP), and predictable data invalidation.
 
-2. Goals and Non-Goals
-   Goals
+## 2. Goals and Non-Goals
 
-Instant usability: HTML works without JS; JS progressively enhances.
+### Goals
 
-Resumability: no full-app hydration step; behaviors load/attach per interaction/visibility/idle.
+- Instant usability: HTML works without JS; JS progressively enhances
+- Resumability: no full-app hydration step; behaviors load/attach per interaction/visibility/idle
+- Patch-first updates: update only exact DOM targets affected by changes
+- Unified causal graph: one source-of-truth model used by compiler + server + client runtime + devtools
+- Deterministic data model: resources/actions have explicit keys/tags; invalidation is graph-driven
+- Performance scheduling: prioritized lanes (`input`/`animation`/`viewport`/`idle`) to prevent jank
+- Interop: React/Vue islands and escape hatches supported
 
-Patch-first updates: update only the exact DOM targets affected by changes.
+### Non-Goals (v0.x)
 
-Unified causal graph: one source-of-truth model used by compiler + server + client runtime + devtools.
+- Supporting all dynamic TS patterns in compiled views (escape hatches are the path)
+- Solving every local-first/collaboration model universally (optional module later)
+- Replacing all component ecosystems immediately
 
-Deterministic data model: resources/actions have explicit keys/tags and invalidation is graph-driven.
+## 3. Terminology
 
-Performance scheduling: prioritized lanes (input/animation/viewport/idle) to prevent jank.
+| Term               | Definition                                                               |
+| ------------------ | ------------------------------------------------------------------------ |
+| Compiled View      | TSX conforming to Helix restrictions and compiled to fragments + patches |
+| BindingMap         | Metadata mapping DOM targets ↔ patch slots + event bindings              |
+| GraphSnapshot      | Minimal serialized state/resource payload needed to resume               |
+| Resource           | Typed data dependency with caching policy and tags                       |
+| Action             | Typed mutation boundary that can invalidate resources/tags               |
+| Unified Graph (UG) | IR containing nodes + edges for app concerns                             |
 
-Interop: React/Vue islands and “escape hatches” supported.
+## 4. System Overview
 
-Non-Goals (v0.x)
+### 4.1 High-level architecture
 
-Supporting all dynamic TS patterns in compiled views (escape hatches instead).
+**Build time**
 
-Solving every local-first/collaboration model universally (optional module later).
+```text
+TS/TSX → Typecheck → Unified Graph (UG)
+       → Compile Views → DOM Fragments + Patch Tables
+       → Extract Actions → Endpoints + Stubs
+       → Extract Resources → Cache/Tags + Prefetch Plan
+       → Chunk Planner → Activation Chunks
+       → Emit Manifests (server/client/graph)
+```
 
-Replacing all component ecosystems immediately.
+**Request time**
 
-3. Terminology
-
-Compiled View: TSX that conforms to Helix restrictions and compiles to fragments + patches.
-
-BindingMap: metadata mapping DOM targets ↔ patch slots + event bindings (for resumability).
-
-GraphSnapshot: minimal serialized state/resource payload needed to resume.
-
-Resource: typed data dependency with caching policy and tags.
-
-Action: typed mutation boundary that can invalidate resources/tags.
-
-Unified Graph (UG): IR containing nodes + edges for all app concerns.
-
-4. System Overview
-   4.1 High-level architecture
-   Build Time
-   TS/TSX → Typecheck → Unified Graph (UG)
-   → Compile Views → DOM Fragments + Patch Tables
-   → Extract Actions → Endpoints + Stubs
-   → Extract Resources → Cache/Tags + Prefetch Plan
-   → Chunk Planner → Activation Chunks
-   → Emit Manifests (server/client/graph)
-
-Request Time
+```text
 Server: Route → Subgraph → Stream HTML + GraphSnapshot + BindingMap
 Client: Paint HTML → Install tiny delegator → Resume on-demand
-4.2 Core invariants
+```
 
-UI updates are performed by patch ops computed from graph dependencies.
+### 4.2 Core invariants
 
-Lists/tables use keyed collection reconciliation (not VDOM).
+- UI updates are performed by patch ops computed from graph dependencies
+- Lists/tables use keyed collection reconciliation (not VDOM)
+- Interactivity is lazy by default (event/visibility/idle activation)
+- Data invalidation uses tags/keys and graph edges to compute impact
 
-Interactivity is lazy by default (event/visibility/idle activation).
+## 5. Programming Model (Core Primitives)
 
-Data invalidation uses tags/keys and graph edges to compute impact.
+Helix provides 5 primitives that define graph nodes.
 
-5. Programming Model (Core Primitives)
-
-Helix provides 5 primitives that define graph nodes:
-
-5.1 cell<T>(initial, options?)
+### 5.1 `cell<T>(initial, options?)`
 
 Writable reactive state.
 
-Options: scope: app|route|view|session, serializable, secure, clientOnly
+Options:
 
-5.2 derived<T>(compute, options?)
+- `scope`: `app | route | view | session`
+- `serializable`
+- `secure`
+- `clientOnly`
+
+### 5.2 `derived<T>(compute, options?)`
 
 Pure computation dependent on cells/resources.
 
-5.3 resource<T>(keyFn, fetcher, policy)
+### 5.3 `resource<T>(keyFn, fetcher, policy)`
 
 Data dependency with caching and placement rules.
 
 Policy:
-where: server|edge|client|any
-cache: memory|disk|kv|none
-staleMs, revalidateMs, dedupe: inflight|none
-tags: string[] | (ctx)=>string[]
 
-5.4 action<I,O>(handler, policy)
+- `where`: `server | edge | client | any`
+- `cache`: `memory | disk | kv | none`
+- `staleMs`, `revalidateMs`, `dedupe: inflight | none`
+- `tags: string[] | (ctx) => string[]`
+
+### 5.4 `action<I, O>(handler, policy)`
 
 Typed mutation boundary.
 
 Policy:
-where: server|edge|client|any
-invalidates: tags[] | (ctx,input)=>tags[]
-capabilities: string[]
-idempotency: optional
-optimistic: optional (library-level helper)
 
-5.5 view<Props>(renderFn)
+- `where`: `server | edge | client | any`
+- `invalidates: tags[] | (ctx, input) => tags[]`
+- `capabilities: string[]`
+- `idempotency` (optional)
+- `optimistic` (optional; library-level helper)
+
+### 5.5 `view<Props>(renderFn)`
 
 Declares a compiled view. TSX subset applies.
 
-6. TSX Compilation Rules (Compiled Views)
-   6.1 Allowed
+## 6. TSX Compilation Rules (Compiled Views)
 
-static tag names (<div>, <UserRow>)
+### 6.1 Allowed
 
-static attrs and reactive attrs bound to cells/derived/resources
+- Static tag names (`<div>`, `<UserRow>`)
+- Static attrs and reactive attrs bound to cells/derived/resources
+- Conditionals (`cond ? <A/> : <B/>`)
+- Keyed lists (`items.map(item => <Row key={item.id} ... />)`)
+- Named handlers (`onClick={saveUser}` where `saveUser` is an action or registered client action)
+- Limited refs (see escape hatches)
 
-conditionals (cond ? <A/> : <B/>)
+### 6.2 Disallowed in compiled views
 
-keyed lists (items.map(item => <Row key={item.id} ... />))
+- Inline lambdas in handlers (`onClick={() => ...}`)
+- Prop spread (`<X {...props} />`)
+- Dynamic tag names (`<Tag />` where `Tag` varies)
+- Render props / function-as-child patterns
+- Unbounded dynamic style objects (restricted to known keys)
 
-named handlers: onClick={saveUser} where saveUser is an action (or registered client action)
+### 6.3 Escape hatches
 
-limited refs (see 6.3)
+- `uncompiledView(fn)` — runtime evaluation, no patch compile
+- `clientOnly(loader)` — loads an island component after paint
+- `rawComponent(React/Vue)` — mounts external component as an island
+- `dangerouslyRawHTML(html)` — controlled HTML injection
 
-6.2 Disallowed in compiled views
+Tooling requirement: dev mode warns when escape hatch footprint exceeds thresholds.
 
-inline lambdas in handlers: onClick={() => ...} ❌
+## 7. Unified Graph IR (Single Source of Truth)
 
-prop spread: <X {...props} /> ❌
+### 7.1 Node types
 
-dynamic tag names: <Tag /> where Tag varies ❌
+- `RouteNode`
+- `ViewNode` (compiled view, template IDs, patch table)
+- `CellNode`
+- `DerivedNode`
+- `ResourceNode`
+- `ActionNode`
+- `EffectNode` (sockets, subscriptions, timers)
+- `AssetNode`
+- `ModuleNode`
 
-render props / function-as-child patterns ❌
+### 7.2 Edge types
 
-unbounded dynamic style objects (restricted to known keys)
+- `dependsOn(A, B)` — value dependency
+- `renders(Route, View/Layout)`
+- `invalidates(Action, Tag/Resource)`
+- `imports(Module, Module)`
+- `activates(EventBinding, Chunk)`
+- `owns(ScopeOwner, Cell)` — lifecycle ownership (GC rules)
 
-6.3 Escape hatches
-
-uncompiledView(fn) – renders with runtime evaluation, no patch compile
-
-clientOnly(loader) – loads an island component after paint
-
-rawComponent(React/Vue) – mounts external component as an island
-
-dangerouslyRawHTML(html) – controlled HTML injection
-
-Tooling requirement: Dev mode warns when escape hatch footprint exceeds thresholds.
-
-7. Unified Graph IR (Single Source of Truth)
-   7.1 Node types
-
-RouteNode
-
-ViewNode (compiled view, template IDs, patch table)
-
-CellNode
-
-DerivedNode
-
-ResourceNode
-
-ActionNode
-
-EffectNode (sockets, subscriptions, timers)
-
-AssetNode
-
-ModuleNode
-
-7.2 Edge types
-
-dependsOn(A,B) – value dependency
-
-renders(Route,View/Layout)
-
-invalidates(Action, Tag/Resource)
-
-imports(Module,Module)
-
-activates(EventBinding, Chunk)
-
-owns(ScopeOwner, Cell) – lifecycle ownership (GC rules)
-
-7.3 Determinism rules
+### 7.3 Determinism rules
 
 Compiled regions must allow static extraction of:
 
-dependency edges (what each binding reads),
+- Dependency edges (what each binding reads)
+- Event bindings (what events invoke)
+- List keys (stable key expressions)
 
-event bindings (what events invoke),
+## 8. View Output Format (DOM Template + Patch Ops)
 
-list keys (stable key expressions).
+### 8.1 Compiled view produces
 
-8. View Output Format (DOM Template + Patch Ops)
-   8.1 Compiled view produces
+- `createFragment(): DocumentFragment`
+- `patchTable: PatchFn[]`
+- `targetMap: targetId → DOM node reference offset`
+- `bindingSlots: slotId → (targetId, patchFnIndex, dependencyNodeId)`
 
-createFragment(): DocumentFragment
+### 8.2 Patch op set (v0.1)
 
-patchTable: PatchFn[]
+- `setText(targetId, string)`
+- `setAttr(targetId, name, string | null)`
+- `toggleClass(targetId, className, boolean)`
+- `setValue(targetId, string)` (inputs)
+- `setChecked(targetId, boolean)`
+- `setStyle(targetId, prop, value)` (restricted whitelist)
 
-targetMap: targetId → DOM node reference offset
+## 9. SSR + Streaming Lifecycle
 
-bindingSlots: slotId → (targetId, patchFnIndex, dependencyNodeId)
+### 9.1 Server pipeline
 
-8.2 Patch op set (v0.1)
+1. Route match → route subgraph
+2. Start HTML stream
+3. Evaluate resources (parallel, dedupe, cache)
+4. Stream resolved segments
+5. Emit `<script type="application/helix+snapshot">...</script>` containing:
+   - `GraphSnapshot` (cells/resources needed)
+   - `BindingMap` (event + patch slot metadata)
+   - `ChunkManifestHints` (preload candidates)
 
-setText(targetId, string)
-
-setAttr(targetId, name, string|null)
-
-toggleClass(targetId, className, boolean)
-
-setValue(targetId, string) (inputs)
-
-setChecked(targetId, boolean)
-
-setStyle(targetId, prop, value) (restricted whitelist)
-
-9. SSR + Streaming Lifecycle
-   9.1 Server pipeline
-
-Route match → route subgraph
-
-Start HTML stream
-
-Evaluate resources (parallel, dedupe, cache)
-
-Stream resolved segments
-
-Emit <script type="application/helix+snapshot">...</script> containing:
-
-GraphSnapshot (cells/resources needed)
-
-BindingMap (event + patch slot metadata)
-
-ChunkManifestHints (preload candidates)
-
-9.2 Client bootstrap
+### 9.2 Client bootstrap
 
 On page load:
 
-install one tiny event delegator
+- Install one tiny event delegator
+- Do not execute view render functions
+- Attach handlers lazily when:
+  - user interacts (event)
+  - element becomes visible (`IntersectionObserver`)
+  - idle time (`requestIdleCallback`)
 
-do not execute view render functions
+## 10. Resumability Model
 
-attach handlers lazily when:
-
-user interacts (event)
-
-element becomes visible (IntersectionObserver)
-
-idle time (requestIdleCallback)
-
-10. Resumability Model
-    10.1 BindingMap
+### 10.1 BindingMap
 
 A compact mapping of:
 
-domTargetId → patchSlots[]
+- `domTargetId → patchSlots[]`
+- `domEventBindingId → actionId + chunkId + parameters encoding`
+- `listContainerId → keyed reconciliation config`
 
-domEventBindingId → actionId + chunkId + parameters encoding
-
-listContainerId → keyed reconciliation config
-
-10.2 Activation
+### 10.2 Activation
 
 When an event is captured:
 
-lookup binding
+1. Lookup binding
+2. Load chunk if not loaded
+3. Execute action (client/server)
+4. Update dependent cells/resources
+5. Compute affected patch slots from graph edges
+6. Apply patch ops (scheduled)
 
-load chunk if not loaded
+## 11. Scheduling and Responsiveness
 
-execute action (client/server)
+### 11.1 Lanes
 
-update dependent cells/resources
+- Input lane (highest)
+- Animation lane
+- Viewport lane
+- Network lane
+- Idle lane
 
-compute affected patch slots from graph edges
+### 11.2 Budgets
 
-apply patch ops (scheduled)
+- Patch batches are time-sliced (e.g., 2–4ms)
+- Input lane can interrupt lower lanes
+- Devtools reports long tasks and offending dependencies
 
-11. Scheduling and Responsiveness
-    11.1 Lanes
+## 12. Data Model (Resources)
 
-Input lane (highest)
+### 12.1 Keying
 
-Animation lane
+Resources are keyed by stable arrays/strings.
 
-Viewport lane
+Example:
 
-Network lane
+```ts
+["users", page, pageSize, sortCol, sortDir, filter];
+```
 
-Idle lane
+### 12.2 Cache + dedupe
 
-11.2 Budgets
+- Inflight dedupe by key
+- Cache store choice by policy (`memory`/`kv`/`none`)
+- Revalidate by time or invalidation tags
 
-Patch batches are time-sliced (e.g., 2–4ms)
-
-Input lane can interrupt lower lanes
-
-Devtools reports long tasks and offending dependencies.
-
-12. Data Model (Resources)
-    12.1 Keying
-
-Resources are keyed by stable arrays/strings. Example:
-["users", page, pageSize, sortCol, sortDir, filter]
-
-12.2 Cache + dedupe
-
-inflight dedupe by key
-
-cache store choice by policy: memory/kv/none
-
-revalidate by time or invalidation tags
-
-12.3 Invalidation
+### 12.3 Invalidation
 
 Actions invalidate:
 
-specific resource keys, or
-
-tags (recommended)
+- Specific resource keys, or
+- Tags (recommended)
 
 Helix uses graph edges to determine:
 
-which resources to refetch
+- Which resources to refetch
+- Which DOM targets to patch after refresh
 
-which DOM targets to patch after refresh
+## 13. Mutation Model (Actions)
 
-13. Mutation Model (Actions)
-    13.1 Types
+### 13.1 Types
 
-serverAction
+- `serverAction`
+- `edgeAction`
+- `clientAction` (pure UI)
+- `universalAction` (policy-driven placement)
 
-edgeAction
-
-clientAction (pure UI)
-
-universalAction (policy-driven placement)
-
-13.2 Capabilities
+### 13.2 Capabilities
 
 Actions declare required capabilities; runtime enforces:
 
-views cannot call actions without route/app-granted capabilities
+- Views cannot call actions without route/app-granted capabilities
+- Server-side enforcement is mandatory
 
-server-side enforcement mandatory
-
-13.3 Optimistic updates (library)
+### 13.3 Optimistic updates (library)
 
 Pattern:
 
-apply optimistic cell changes
+1. Apply optimistic cell changes
+2. Run action
+3. On failure, rollback from recorded transaction log
 
-run action
+## 14. Complex Components: Tables, Paging, Forms
 
-on failure rollback from recorded transaction log
+### 14.1 Keyed Collection Reconciler (required)
 
-14. Complex Components: Tables, Paging, Forms
-    14.1 Keyed Collection Reconciler (required)
+For `<tbody>` or list containers, Helix provides a reconciler.
 
-For <tbody> or list containers, Helix provides a reconciler:
+Inputs:
 
-Inputs
+- Current keys (ordered)
+- Next keys (ordered)
+- `key → fragment` map
 
-current keys (ordered)
+Operations:
 
-next keys (ordered)
-
-key → fragment map
-
-Operations
-
-move fragments for existing keys
-
-insert for new keys
-
-remove for missing keys
+- Move fragments for existing keys
+- Insert for new keys
+- Remove for missing keys
 
 Only the list container performs reconciliation; inside each row fragment, updates are patch ops.
 
-14.2 Virtualization primitives (required)
+### 14.2 Virtualization primitives (required)
 
-VirtualList
-
-VirtualGrid
+- `VirtualList`
+- `VirtualGrid`
 
 Virtualization determines which keys are mounted (windowing); reconciler mounts/unmounts fragments accordingly.
 
-14.3 Paging lifecycle (reference)
+### 14.3 Paging lifecycle (reference)
 
-click Next → page cell updates
+- Click Next → page cell updates
+- Resource key changes → fetch/dedupe/cache
+- Reconciler swaps rows (move/insert/remove)
+- Patches update page indicators, disabled buttons, etc.
 
-resource key changes → fetch/dedupe/cache
+### 14.4 Form system (two modes)
 
-reconciler swaps rows (move/insert/remove)
+**Mode A: HTML-first progressive forms**
 
-patches update page indicators, disabled buttons, etc.
+- Standard `<form method="post" action="...">`
+- Works without JS
+- With JS: intercept submit → action fetch → patch errors inline
 
-14.4 Form system (two modes)
+**Mode B: Reactive forms**
 
-Mode A: HTML-first progressive forms
-
-standard <form method=post action=...>
-
-works without JS
-
-with JS: intercept submit → action fetch → patch errors inline
-
-Mode B: Reactive forms
-
-cells per field
-
-derived validity/errors
-
-patch disabled states, error messages, aria attributes
+- Cells per field
+- Derived validity/errors
+- Patch disabled states, error messages, `aria-*` attributes
 
 Requirement: library must support server-returned structured errors:
-{ fieldErrors: Record<string,string>, formError?: string }
 
-15. Visual Lifecycle Reference (Canonical Flows)
-    15.1 Table paging
-    SSR:
-    [S] /users?page=1 → resource(usersPage(1)) → HTML stream + snapshot + bindings
-    Resume:
-    [C] click Next → load paging chunk → page++ → fetch usersPage(2) → keyed reconcile tbody → patch indicators
-    15.2 Sorting
-    [C] click header → setSort → resource key changes → (cache hit or fetch) → DOM moves (reorder) + patch sort icon
-    15.3 Virtualized scroll
-    [C] scroll → compute window keys → mount/unmount row fragments → patch visible cells only
-    15.4 Enhanced form submit
-    [C] submit captured → chunk load → action request → response
-    success: patch toast/nav
-    fail: patch field errors + aria-invalid + message
-    15.5 Inline edit + optimistic
-    [C] edit cell → patch that cell only
-    [C] click Save → optimistic 'saving' state patch → action → invalidate tag → refresh resource → patch row status + values
-16. Interop / Islands
-    16.1 Island host
+```ts
+{ fieldErrors: Record<string, string>, formError?: string }
+```
 
-clientOnly(() => import("./HeavyWidget"))
+## 15. Visual Lifecycle Reference (Canonical Flows)
+
+### 15.1 Table paging
+
+**SSR**
+
+```text
+[S] /users?page=1 → resource(usersPage(1)) → HTML stream + snapshot + bindings
+```
+
+**Resume**
+
+```text
+[C] click Next → load paging chunk → page++ → fetch usersPage(2)
+→ keyed reconcile tbody → patch indicators
+```
+
+### 15.2 Sorting
+
+```text
+[C] click header → setSort → resource key changes → (cache hit or fetch)
+→ DOM moves (reorder) + patch sort icon
+```
+
+### 15.3 Virtualized scroll
+
+```text
+[C] scroll → compute window keys → mount/unmount row fragments
+→ patch visible cells only
+```
+
+### 15.4 Enhanced form submit
+
+```text
+[C] submit captured → chunk load → action request → response
+success: patch toast/nav
+fail: patch field errors + aria-invalid + message
+```
+
+### 15.5 Inline edit + optimistic
+
+```text
+[C] edit cell → patch that cell only
+[C] click Save → optimistic 'saving' state patch → action
+→ invalidate tag → refresh resource → patch row status + values
+```
+
+## 16. Interop / Islands
+
+### 16.1 Island host
+
+```ts
+clientOnly(() => import("./HeavyWidget"));
+```
+
 Mounts after paint or on visibility; can receive Helix resources as props.
 
-16.2 External frameworks
+### 16.2 External frameworks
 
-rawComponent(ReactComponent, { ssr?: boolean, hydrate?: "local"|"none" })
+```ts
+rawComponent(ReactComponent, { ssr?: boolean, hydrate?: "local" | "none" });
+```
 
 Local hydration may be used inside the island without affecting the whole page.
 
-17. Devtools and Observability
-    17.1 Graph inspector
+## 17. Devtools and Observability
 
-select DOM element → show dependency chain in UG
+### 17.1 Graph inspector
 
-select action/resource → list affected DOM targets and timings
+- Select DOM element → show dependency chain in UG
+- Select action/resource → list affected DOM targets and timings
 
-17.2 Causality trace
+### 17.2 Causality trace
 
 Every update records:
 
-trigger (event/action/resource)
+- Trigger (`event`/`action`/`resource`)
+- Nodes invalidated/refetched
+- Patch slots executed
+- Scheduler lane + timings
 
-nodes invalidated/refetched
-
-patch slots executed
-
-scheduler lane + timings
-
-17.3 Guardrails
+### 17.3 Guardrails
 
 Warnings for:
 
-large escape hatch footprint
+- Large escape hatch footprint
+- Non-keyed lists
+- Large initial JS
+- Long derived chains / heavy patch bursts
 
-non-keyed lists
+## 18. Validation Across 10 Use Cases
 
-large initial JS
+| Use Case                   | Fit               | Primary wins                                  | Primary risks      | Must-have modules                       |
+| -------------------------- | ----------------- | --------------------------------------------- | ------------------ | --------------------------------------- |
+| Marketing/blog             | Excellent         | Near-zero JS, instant paint                   | None major         | streaming SSR, islands                  |
+| E-commerce                 | Excellent         | Fast PDP/PLP, deterministic cart invalidation | 3rd-party scripts  | resources/tags, secure actions          |
+| SaaS admin dashboard       | Very good         | Patch-first tables/forms, less rerender churn | JS-heavy pages     | virtualization, scheduler, datagrid lib |
+| Realtime chat              | Good              | Patch-only list updates                       | backpressure/order | effect nodes, buffering                 |
+| Analytics tables           | Very good         | Stable performance under filters              | huge DOM           | virtualization + profiling              |
+| Page builder (Wix-like)    | Excellent         | Graph maps naturally, fast inspector          | dynamic widgets    | transaction log, devtools               |
+| Offline field app          | Strong (optional) | Local-first responsiveness                    | conflicts          | local store + sync module               |
+| Media + comments           | Good              | Lazy comments/reactions                       | DRM/SDKs           | islands + prefetch policies             |
+| Docs + interactive samples | Excellent         | Activate only samples                         | sandboxing         | MDX + `clientOnly` sandbox              |
+| Fintech                    | Very good         | Capabilities + audit traces                   | compliance         | server-only data, audit hooks           |
 
-long derived chains / heavy patch bursts
+## 19. Non-Functional Requirements
 
-18. Validation Across 10 Use Cases
-    Use Case Fit Primary Wins Primary Risks Must-Have Modules
+### Performance targets (v0.x guidance)
 
-1) Marketing/blog Excellent near-zero JS, instant paint none major streaming SSR, islands
-2) E-commerce Excellent fast PDP/PLP, deterministic cart invalidation 3rd-party scripts resources/tags, secure actions
-3) SaaS admin dashboard Very good patch-first tables/forms, less rerender churn JS-heavy pages virtualization, scheduler, datagrid lib
-4) Realtime chat Good patch-only list updates backpressure/order effect nodes, buffering
-5) Analytics tables Very good stable performance under filters huge DOM virtualization + profiling
-6) Page builder (Wix-like) Excellent graph maps naturally, fast inspector dynamic widgets transaction log, devtools
-7) Offline field app Strong (opt) local-first responsiveness conflicts local store + sync module
-8) Media + comments Good lazy comments/reactions DRM/SDKs islands + prefetch policies
-9) Docs + interactive samples Excellent activate only samples sandboxing mdx + clientOnly sandbox
-10) Fintech Very good capabilities + audit traces compliance server-only data, audit hooks
+- Minimal bootstrap runtime: `< 5–10KB` gzip target (excluding app chunks)
+- No global hydration pass
+- Input handling: no long tasks > 50ms on typical pages
+- List reconciliation: `O(changes)` using keys; virtualization required for large datasets
 
-19. Non-Functional Requirements
-    Performance targets (v0.x guidance)
+### Security
 
-minimal bootstrap runtime: < 5–10KB gzip target (excluding app chunks)
+- Server enforcement of capabilities is mandatory
+- Sensitive data must be accessed via server resources/actions only
+- CSP-friendly output required (avoid inline scripts where possible; snapshot can be nonce’d)
 
-no global hydration pass
+### Reliability
 
-input handling: no long tasks > 50ms in typical pages
+- Deterministic cache invalidation (tag-based)
+- Idempotency support for actions that mutate state
 
-list reconciliation: O(changes) using keys; virtualization required for large datasets
-
-Security
-
-server enforcement of capabilities is mandatory
-
-sensitive data must be accessed via server resources/actions only
-
-CSP-friendly output required (avoid inline script where possible; snapshot can be nonce’d)
-
-Reliability
-
-deterministic cache invalidation (tag-based)
-
-idempotency support for actions that mutate state
-
-20. Deliverables / Artifacts
+## 20. Deliverables / Artifacts
 
 Build output:
 
-dist/server/\*\* (SSR renderer, action handlers)
+- `dist/server/**` (SSR renderer, action handlers)
+- `dist/client/**` (bootstrap + activation chunks)
+- `dist/graph/graph.bin` (UG)
+- `dist/manifest.json` (chunks/assets/bindings versioning)
+- Source maps for patches and chunks
 
-dist/client/\*\* (bootstrap + activation chunks)
+## 21. Roadmap (Practical Sequencing)
 
-dist/graph/graph.bin (UG)
+### Phase 0
 
-dist/manifest.json (chunks/assets/bindings versioning)
+- TSX subset + view compiler to DOM fragments + patches
+- BindingMap + minimal client delegator
+- SSR streaming (basic) + GraphSnapshot
 
-source maps for patches and chunks
+### Phase 1
 
-21. Roadmap (Practical Sequencing)
+- Resources/actions extraction + cache/tags
+- Keyed list reconciliation
+- Form enhancement pipeline
 
-Phase 0:
+### Phase 2
 
-TSX subset + view compiler to DOM fragments + patches
+- Virtualization primitives
+- Scheduler lanes + devtools traces
+- React island interop
 
-BindingMap + minimal client delegator
+### Phase 3
 
-SSR streaming (basic) + GraphSnapshot
+- Capability enforcement framework
+- Advanced devtools (graph inspector UI)
+- Optional local-first module
 
-Phase 1:
+## 22. Repository Implementation Pattern (Current)
 
-resources/actions extraction + cache/tags
+Default page authoring pattern in this repository:
 
-keyed list reconciliation
+1. TSX source view in `src/example/views-tsx/*.view.tsx`
+2. Generated compiled artifact in `src/example/views/compiled/*.compiled.ts`
+3. Server wrapper in `src/example/views/*.ts` that composes dynamic HTML and calls `render*CompiledView(...)`
 
-form enhancement pipeline
+This split keeps static structure compiler-managed while allowing server-side composition of dynamic table/card markup where needed.
 
-Phase 2:
+## 23. End-to-End Page Workflow (Current)
 
-virtualization primitives
+### Step 1 — Author TSX shell
 
-scheduler lanes + devtools traces
+Create a `.view.tsx` file with static structure and `hx-slot` placeholders for dynamic HTML.
 
-React island interop
+### Step 2 — Generate compiled artifacts
 
-Phase 3:
+Run `npm run gen:views` to emit/refresh `*.compiled.ts` output.
 
-capability enforcement framework
+### Step 3 — Implement server wrapper
 
-advanced devtools (graph inspector UI)
+In `src/example/views/*.ts`, render dynamic sections (cards/tables/pager) and pass them as props to the compiled render function.
 
-optional local-first module
+### Step 4 — Wire page route
+
+Add/extend page logic in `src/example/handlers/pages.handler.ts` and register route in `src/example/routes/index.ts`.
+
+### Step 5 — Add optional hybrid interaction path
+
+For frequent updates (paging/sort/filter), add:
+
+- JSON endpoint in `src/example/handlers/api.handler.ts`
+- Client module in `src/example/client/*.ts` that fetches JSON and patches only stable `data-hx-id` regions
+- Browser history sync (`pushState`/`popstate`) with full-navigation fallback on error
+
+### Step 6 — Validate consistency
+
+- `npm run build`
+- `npm run test`
+- `npm run verify` before push
+
+Reference implementation: Host Listings (`/host-listings`) uses this full path (compiled shell + hybrid JSON paging updates).

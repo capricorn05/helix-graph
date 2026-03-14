@@ -50,6 +50,27 @@ interface ExternalProductDetailApiResponse extends ExternalProductRow {
   sourceId: number;
 }
 
+interface ExternalMediaProductRow extends ExternalProductDetailApiResponse {}
+
+interface ExternalMediaProductsApiResponse {
+  rows: ExternalMediaProductRow[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+interface ExternalMediaPageState {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+type ExternalMediaPriceBand = "budget" | "mid" | "premium";
+type ExternalMediaStockBand = "empty" | "low" | "healthy";
+type ExternalMediaRatingBand = "low" | "mid" | "high";
+
 interface PostRow {
   id: number;
   userId: number;
@@ -104,6 +125,90 @@ function parseNumeric(value: string | undefined, fallback: number): number {
   }
 
   return parsed;
+}
+
+function getExternalMediaPriceBand(price: number): ExternalMediaPriceBand {
+  if (price >= 120) {
+    return "premium";
+  }
+
+  if (price <= 30) {
+    return "budget";
+  }
+
+  return "mid";
+}
+
+function getExternalMediaStockBand(stock: number): ExternalMediaStockBand {
+  if (stock <= 0) {
+    return "empty";
+  }
+
+  if (stock <= 15) {
+    return "low";
+  }
+
+  return "healthy";
+}
+
+function getExternalMediaRatingBand(rating: number): ExternalMediaRatingBand {
+  if (rating >= 4.5) {
+    return "high";
+  }
+
+  if (rating < 3.8) {
+    return "low";
+  }
+
+  return "mid";
+}
+
+function getExternalMediaPriceLabel(band: ExternalMediaPriceBand): string {
+  switch (band) {
+    case "budget":
+      return "Budget";
+    case "premium":
+      return "Premium";
+    default:
+      return "Standard";
+  }
+}
+
+function getExternalMediaStockLabel(band: ExternalMediaStockBand): string {
+  switch (band) {
+    case "empty":
+      return "Out";
+    case "low":
+      return "Low";
+    default:
+      return "Ready";
+  }
+}
+
+function getExternalMediaRatingLabel(band: ExternalMediaRatingBand): string {
+  switch (band) {
+    case "high":
+      return "Top";
+    case "low":
+      return "Risk";
+    default:
+      return "Solid";
+  }
+}
+
+function formatExternalMediaRatingStars(rating: number): string {
+  const safeRating = Math.max(0, Math.min(5, rating));
+  const filledStars = Math.max(0, Math.min(5, Math.round(safeRating)));
+  return `${"★".repeat(filledStars)}${"☆".repeat(5 - filledStars)}`;
+}
+
+function truncateExternalMediaTitleForCell(title: string): string {
+  const limit = 52;
+  if (title.length <= limit) {
+    return title;
+  }
+
+  return `${title.slice(0, limit - 1)}…`;
 }
 
 function normalizeNavPath(pathname: string): string {
@@ -260,6 +365,28 @@ function syncExternalStateFromDom(runtime: HelixClientRuntime): void {
   };
 }
 
+function readExternalMediaStateFromDom(): ExternalMediaPageState | null {
+  const stateElement = document.querySelector(
+    '[data-hx-id="external-media-page-state"]',
+  );
+  if (!(stateElement instanceof HTMLElement)) {
+    return null;
+  }
+
+  return {
+    page: Math.max(1, Math.floor(parseNumeric(stateElement.dataset.page, 1))),
+    pageSize: Math.max(
+      1,
+      Math.floor(parseNumeric(stateElement.dataset.pageSize, 30)),
+    ),
+    total: Math.max(0, Math.floor(parseNumeric(stateElement.dataset.total, 0))),
+    totalPages: Math.max(
+      1,
+      Math.floor(parseNumeric(stateElement.dataset.totalPages, 1)),
+    ),
+  };
+}
+
 function syncExternalDetailStateFromDom(runtime: HelixClientRuntime): void {
   installRuntimeStateReactivity(runtime);
 
@@ -348,6 +475,14 @@ function installAppNavPopstate(runtime: HelixClientRuntime): void {
 
   appNavPopstateInstalled = true;
   window.addEventListener("popstate", () => {
+    if (
+      window.location.pathname === "/host-listings" &&
+      document.querySelector('[data-hx-id="host-listings-root"]') instanceof
+        HTMLElement
+    ) {
+      return;
+    }
+
     const currentPath = `${window.location.pathname}${window.location.search}`;
     void loadAdminCore(runtime, currentPath, false).catch((error: unknown) => {
       console.error("[Helix] app-nav popstate error", error);
@@ -912,6 +1047,121 @@ function createExternalProductRowNode(key: string): Node {
   return row;
 }
 
+function createExternalMediaProductRowNode(key: string): Node {
+  const id = Number(key);
+  const row = document.createElement("tr");
+  row.setAttribute("data-hx-id", `external-media-row-${id}`);
+  row.setAttribute("data-hx-key", String(id));
+  row.className = "external-media-row";
+
+  const idCell = document.createElement("td");
+  idCell.setAttribute("data-hx-id", `external-media-row-${id}-id`);
+  row.appendChild(idCell);
+
+  const previewCell = document.createElement("td");
+  previewCell.setAttribute("data-hx-id", `external-media-row-${id}-preview`);
+  previewCell.className = "external-media-preview-cell";
+  const thumbWrap = document.createElement("div");
+  thumbWrap.setAttribute("data-hx-id", `external-media-row-${id}-thumb-wrap`);
+  thumbWrap.className = "external-media-thumb-wrap";
+
+  const thumb = document.createElement("img");
+  thumb.setAttribute("data-hx-id", `external-media-row-${id}-thumb`);
+  thumb.className = "external-media-thumb";
+  thumb.setAttribute("loading", "lazy");
+  thumb.setAttribute("decoding", "async");
+  thumb.alt = "";
+  thumbWrap.appendChild(thumb);
+
+  const thumbChip = document.createElement("span");
+  thumbChip.setAttribute("data-hx-id", `external-media-row-${id}-thumb-chip`);
+  thumbChip.className = "external-media-thumb-chip";
+  thumbWrap.appendChild(thumbChip);
+  previewCell.appendChild(thumbWrap);
+  row.appendChild(previewCell);
+
+  const titleCell = document.createElement("td");
+  titleCell.setAttribute("data-hx-id", `external-media-row-${id}-title-cell`);
+  const titleText = document.createElement("span");
+  titleText.setAttribute("data-hx-id", `external-media-row-${id}-title`);
+  titleCell.appendChild(titleText);
+  row.appendChild(titleCell);
+
+  const brandCell = document.createElement("td");
+  brandCell.setAttribute("data-hx-id", `external-media-row-${id}-brand`);
+  row.appendChild(brandCell);
+
+  const categoryCell = document.createElement("td");
+  categoryCell.setAttribute("data-hx-id", `external-media-row-${id}-category`);
+  row.appendChild(categoryCell);
+
+  const priceCell = document.createElement("td");
+  priceCell.setAttribute("data-hx-id", `external-media-row-${id}-price`);
+  const priceStack = document.createElement("div");
+  priceStack.className = "external-media-cell-stack";
+  const priceMain = document.createElement("span");
+  priceMain.setAttribute("data-hx-id", `external-media-row-${id}-price-main`);
+  priceMain.className = "external-media-main";
+  priceStack.appendChild(priceMain);
+  const pricePill = document.createElement("span");
+  pricePill.setAttribute("data-hx-id", `external-media-row-${id}-price-pill`);
+  pricePill.className = "external-media-pill";
+  priceStack.appendChild(pricePill);
+  priceCell.appendChild(priceStack);
+  row.appendChild(priceCell);
+
+  const stockCell = document.createElement("td");
+  stockCell.setAttribute("data-hx-id", `external-media-row-${id}-stock`);
+  const stockStack = document.createElement("div");
+  stockStack.className = "external-media-cell-stack";
+  const stockMain = document.createElement("span");
+  stockMain.setAttribute("data-hx-id", `external-media-row-${id}-stock-main`);
+  stockMain.className = "external-media-main";
+  stockStack.appendChild(stockMain);
+  const stockPill = document.createElement("span");
+  stockPill.setAttribute("data-hx-id", `external-media-row-${id}-stock-pill`);
+  stockPill.className = "external-media-pill";
+  stockStack.appendChild(stockPill);
+  stockCell.appendChild(stockStack);
+  row.appendChild(stockCell);
+
+  const ratingCell = document.createElement("td");
+  ratingCell.setAttribute("data-hx-id", `external-media-row-${id}-rating`);
+  const ratingStack = document.createElement("div");
+  ratingStack.className = "external-media-cell-stack";
+  const ratingMain = document.createElement("span");
+  ratingMain.setAttribute("data-hx-id", `external-media-row-${id}-rating-main`);
+  ratingMain.className = "external-media-main";
+  ratingStack.appendChild(ratingMain);
+  const ratingStars = document.createElement("span");
+  ratingStars.setAttribute(
+    "data-hx-id",
+    `external-media-row-${id}-rating-stars`,
+  );
+  ratingStars.className = "external-media-stars";
+  ratingStack.appendChild(ratingStars);
+  const ratingPill = document.createElement("span");
+  ratingPill.setAttribute("data-hx-id", `external-media-row-${id}-rating-pill`);
+  ratingPill.className = "external-media-pill";
+  ratingStack.appendChild(ratingPill);
+  ratingCell.appendChild(ratingStack);
+  row.appendChild(ratingCell);
+
+  const actionCell = document.createElement("td");
+  actionCell.setAttribute("data-hx-id", `external-media-row-${id}-actions`);
+  const detailButton = document.createElement("button");
+  detailButton.type = "button";
+  detailButton.textContent = "Details";
+  detailButton.className = "hx-btn hx-btn--secondary";
+  detailButton.setAttribute("data-hx-id", `external-media-row-${id}-action`);
+  detailButton.setAttribute("data-hx-bind", "external-media-detail-open");
+  detailButton.setAttribute("data-row-id", String(id));
+  actionCell.appendChild(detailButton);
+  row.appendChild(actionCell);
+
+  return row;
+}
+
 function createPostRowNode(key: string): Node {
   const id = Number(key);
   const row = document.createElement("tr");
@@ -1101,6 +1351,431 @@ async function refreshExternalProducts(
     {},
     "",
     `/external-data?page=${productsPage.page}`,
+  );
+}
+
+function applyExternalMediaProductsPage(
+  runtime: HelixClientRuntime,
+  productsPage: ExternalMediaProductsApiResponse,
+  trigger: string,
+  lane: Lane,
+): void {
+  const container = document.querySelector(
+    '[data-hx-id="external-media-products-body"]',
+  );
+  if (!(container instanceof Element)) {
+    throw new Error("Missing external rich products container");
+  }
+
+  const nextKeys = productsPage.rows.map((row) => row.id);
+  reconcileKeyed(container, nextKeys, createExternalMediaProductRowNode);
+
+  const patches: PatchOp[] = [];
+
+  for (const row of productsPage.rows) {
+    const priceBand = getExternalMediaPriceBand(row.price);
+    const stockBand = getExternalMediaStockBand(row.stock);
+    const ratingBand = getExternalMediaRatingBand(row.rating);
+    const hasThumbnail = row.thumbnail.trim().length > 0;
+
+    patches.push(
+      {
+        op: "setText",
+        targetId: `external-media-row-${row.id}-id`,
+        value: String(row.id),
+      },
+      {
+        op: "setText",
+        targetId: `external-media-row-${row.id}-title`,
+        value: truncateExternalMediaTitleForCell(row.title),
+      },
+      {
+        op: "setText",
+        targetId: `external-media-row-${row.id}-brand`,
+        value: row.brand,
+      },
+      {
+        op: "setText",
+        targetId: `external-media-row-${row.id}-category`,
+        value: row.category,
+      },
+      {
+        op: "setText",
+        targetId: `external-media-row-${row.id}-price-main`,
+        value: `$${row.price.toFixed(2)}`,
+      },
+      {
+        op: "setText",
+        targetId: `external-media-row-${row.id}-stock-main`,
+        value: String(row.stock),
+      },
+      {
+        op: "setText",
+        targetId: `external-media-row-${row.id}-rating-main`,
+        value: row.rating.toFixed(1),
+      },
+      {
+        op: "setText",
+        targetId: `external-media-row-${row.id}-rating-stars`,
+        value: formatExternalMediaRatingStars(row.rating),
+      },
+      {
+        op: "setText",
+        targetId: `external-media-row-${row.id}-price-pill`,
+        value: getExternalMediaPriceLabel(priceBand),
+      },
+      {
+        op: "setText",
+        targetId: `external-media-row-${row.id}-stock-pill`,
+        value: getExternalMediaStockLabel(stockBand),
+      },
+      {
+        op: "setText",
+        targetId: `external-media-row-${row.id}-thumb-chip`,
+        value: getExternalMediaStockLabel(stockBand),
+      },
+      {
+        op: "setText",
+        targetId: `external-media-row-${row.id}-rating-pill`,
+        value: getExternalMediaRatingLabel(ratingBand),
+      },
+      {
+        op: "setAttr",
+        targetId: `external-media-row-${row.id}-thumb`,
+        name: "src",
+        value: hasThumbnail ? row.thumbnail : null,
+      },
+      {
+        op: "setAttr",
+        targetId: `external-media-row-${row.id}-thumb`,
+        name: "alt",
+        value: hasThumbnail ? `${row.title} thumbnail` : "No thumbnail",
+      },
+      {
+        op: "setAttr",
+        targetId: `external-media-row-${row.id}-action`,
+        name: "data-row-id",
+        value: String(row.id),
+      },
+      {
+        op: "toggleClass",
+        targetId: `external-media-row-${row.id}`,
+        className: "external-media-row--price-budget",
+        enabled: priceBand === "budget",
+      },
+      {
+        op: "toggleClass",
+        targetId: `external-media-row-${row.id}`,
+        className: "external-media-row--price-mid",
+        enabled: priceBand === "mid",
+      },
+      {
+        op: "toggleClass",
+        targetId: `external-media-row-${row.id}`,
+        className: "external-media-row--price-premium",
+        enabled: priceBand === "premium",
+      },
+      {
+        op: "toggleClass",
+        targetId: `external-media-row-${row.id}`,
+        className: "external-media-row--stock-empty",
+        enabled: stockBand === "empty",
+      },
+      {
+        op: "toggleClass",
+        targetId: `external-media-row-${row.id}`,
+        className: "external-media-row--stock-low",
+        enabled: stockBand === "low",
+      },
+      {
+        op: "toggleClass",
+        targetId: `external-media-row-${row.id}`,
+        className: "external-media-row--stock-healthy",
+        enabled: stockBand === "healthy",
+      },
+      {
+        op: "toggleClass",
+        targetId: `external-media-row-${row.id}`,
+        className: "external-media-row--rating-low",
+        enabled: ratingBand === "low",
+      },
+      {
+        op: "toggleClass",
+        targetId: `external-media-row-${row.id}`,
+        className: "external-media-row--rating-mid",
+        enabled: ratingBand === "mid",
+      },
+      {
+        op: "toggleClass",
+        targetId: `external-media-row-${row.id}`,
+        className: "external-media-row--rating-high",
+        enabled: ratingBand === "high",
+      },
+      {
+        op: "toggleClass",
+        targetId: `external-media-row-${row.id}`,
+        className: "external-media-row--missing-thumb",
+        enabled: !hasThumbnail,
+      },
+      {
+        op: "toggleClass",
+        targetId: `external-media-row-${row.id}-price-pill`,
+        className: "external-media-pill--budget",
+        enabled: priceBand === "budget",
+      },
+      {
+        op: "toggleClass",
+        targetId: `external-media-row-${row.id}-price-pill`,
+        className: "external-media-pill--mid",
+        enabled: priceBand === "mid",
+      },
+      {
+        op: "toggleClass",
+        targetId: `external-media-row-${row.id}-price-pill`,
+        className: "external-media-pill--premium",
+        enabled: priceBand === "premium",
+      },
+      {
+        op: "toggleClass",
+        targetId: `external-media-row-${row.id}-stock-pill`,
+        className: "external-media-pill--empty",
+        enabled: stockBand === "empty",
+      },
+      {
+        op: "toggleClass",
+        targetId: `external-media-row-${row.id}-stock-pill`,
+        className: "external-media-pill--low",
+        enabled: stockBand === "low",
+      },
+      {
+        op: "toggleClass",
+        targetId: `external-media-row-${row.id}-stock-pill`,
+        className: "external-media-pill--healthy",
+        enabled: stockBand === "healthy",
+      },
+      {
+        op: "toggleClass",
+        targetId: `external-media-row-${row.id}-thumb-chip`,
+        className: "external-media-thumb-chip--empty",
+        enabled: stockBand === "empty",
+      },
+      {
+        op: "toggleClass",
+        targetId: `external-media-row-${row.id}-thumb-chip`,
+        className: "external-media-thumb-chip--low",
+        enabled: stockBand === "low",
+      },
+      {
+        op: "toggleClass",
+        targetId: `external-media-row-${row.id}-thumb-chip`,
+        className: "external-media-thumb-chip--healthy",
+        enabled: stockBand === "healthy",
+      },
+      {
+        op: "toggleClass",
+        targetId: `external-media-row-${row.id}-rating-pill`,
+        className: "external-media-pill--rating-low",
+        enabled: ratingBand === "low",
+      },
+      {
+        op: "toggleClass",
+        targetId: `external-media-row-${row.id}-rating-pill`,
+        className: "external-media-pill--rating-mid",
+        enabled: ratingBand === "mid",
+      },
+      {
+        op: "toggleClass",
+        targetId: `external-media-row-${row.id}-rating-pill`,
+        className: "external-media-pill--rating-high",
+        enabled: ratingBand === "high",
+      },
+    );
+  }
+
+  patches.push(
+    {
+      op: "setText",
+      targetId: "external-media-page-label",
+      value: `Page ${productsPage.page} / ${productsPage.totalPages}`,
+    },
+    {
+      op: "setText",
+      targetId: "external-media-total-label",
+      value: `(Total rows: ${productsPage.total})`,
+    },
+    {
+      op: "setAttr",
+      targetId: "external-media-prev-btn",
+      name: "disabled",
+      value: productsPage.page <= 1 ? "disabled" : null,
+    },
+    {
+      op: "setAttr",
+      targetId: "external-media-next-btn",
+      name: "disabled",
+      value:
+        productsPage.page >= productsPage.totalPages ? "disabled" : null,
+    },
+    {
+      op: "setAttr",
+      targetId: "external-media-page-state",
+      name: "data-page",
+      value: String(productsPage.page),
+    },
+    {
+      op: "setAttr",
+      targetId: "external-media-page-state",
+      name: "data-page-size",
+      value: String(productsPage.pageSize),
+    },
+    {
+      op: "setAttr",
+      targetId: "external-media-page-state",
+      name: "data-total",
+      value: String(productsPage.total),
+    },
+    {
+      op: "setAttr",
+      targetId: "external-media-page-state",
+      name: "data-total-pages",
+      value: String(productsPage.totalPages),
+    },
+    {
+      op: "setStyle",
+      targetId: "external-media-modal-overlay",
+      prop: "display",
+      value: "none",
+    },
+  );
+
+  schedulePatchBatch(runtime, trigger, lane, patches, [
+    "external-media-products-body",
+  ]);
+}
+
+async function refreshExternalMediaProducts(
+  runtime: HelixClientRuntime,
+  page: number,
+  trigger: string,
+  lane: Lane,
+): Promise<void> {
+  const response = await fetch(`/api/external-data-rich?page=${page}`);
+  if (!response.ok) {
+    throw new Error(
+      `External rich products fetch failed with status ${response.status}`,
+    );
+  }
+
+  const productsPage = (await response.json()) as ExternalMediaProductsApiResponse;
+  applyExternalMediaProductsPage(runtime, productsPage, trigger, lane);
+
+  window.history.replaceState(
+    {},
+    "",
+    `/external-data-rich?page=${productsPage.page}`,
+  );
+}
+
+async function openExternalMediaDetail(
+  runtime: HelixClientRuntime,
+  rowId: number,
+): Promise<void> {
+  const response = await fetch(`/api/external-data/${rowId}`);
+  if (!response.ok) {
+    throw new Error(
+      `External detail fetch failed with status ${response.status}`,
+    );
+  }
+
+  const detail = (await response.json()) as ExternalProductDetailApiResponse;
+
+  schedulePatchBatch(
+    runtime,
+    "external-media-detail-open",
+    "network",
+    [
+      {
+        op: "setText",
+        targetId: "external-media-modal-title",
+        value: detail.title,
+      },
+      {
+        op: "setText",
+        targetId: "external-media-modal-id",
+        value: String(detail.id),
+      },
+      {
+        op: "setText",
+        targetId: "external-media-modal-brand",
+        value: detail.brand,
+      },
+      {
+        op: "setText",
+        targetId: "external-media-modal-category",
+        value: detail.category,
+      },
+      {
+        op: "setText",
+        targetId: "external-media-modal-price",
+        value: `$${detail.price.toFixed(2)}`,
+      },
+      {
+        op: "setText",
+        targetId: "external-media-modal-stock",
+        value: String(detail.stock),
+      },
+      {
+        op: "setText",
+        targetId: "external-media-modal-rating",
+        value: detail.rating.toFixed(1),
+      },
+      {
+        op: "setText",
+        targetId: "external-media-modal-source",
+        value: `Seed Product #${detail.sourceId}`,
+      },
+      {
+        op: "setText",
+        targetId: "external-media-modal-description",
+        value: detail.description,
+      },
+      {
+        op: "setAttr",
+        targetId: "external-media-modal-thumbnail",
+        name: "src",
+        value: detail.thumbnail || null,
+      },
+      {
+        op: "setAttr",
+        targetId: "external-media-modal-thumbnail",
+        name: "alt",
+        value: detail.thumbnail ? `${detail.title} thumbnail` : "No thumbnail",
+      },
+      {
+        op: "setStyle",
+        targetId: "external-media-modal-overlay",
+        prop: "display",
+        value: "flex",
+      },
+    ],
+    ["external-media-modal-overlay"],
+  );
+}
+
+function closeExternalMediaDetail(runtime: HelixClientRuntime): void {
+  schedulePatchBatch(
+    runtime,
+    "external-media-detail-close",
+    "input",
+    [
+      {
+        op: "setStyle",
+        targetId: "external-media-modal-overlay",
+        prop: "display",
+        value: "none",
+      },
+    ],
+    ["external-media-modal-overlay"],
   );
 }
 
@@ -1308,6 +1983,38 @@ export async function onExternalPageNext({
   );
 }
 
+export async function onExternalMediaPagePrev({
+  runtime,
+}: HelixClientHandlerContext): Promise<void> {
+  const state = readExternalMediaStateFromDom();
+  if (!state || state.page <= 1) {
+    return;
+  }
+
+  await refreshExternalMediaProducts(
+    runtime,
+    state.page - 1,
+    "external-media-page-prev",
+    "network",
+  );
+}
+
+export async function onExternalMediaPageNext({
+  runtime,
+}: HelixClientHandlerContext): Promise<void> {
+  const state = readExternalMediaStateFromDom();
+  if (!state || state.page >= state.totalPages) {
+    return;
+  }
+
+  await refreshExternalMediaProducts(
+    runtime,
+    state.page + 1,
+    "external-media-page-next",
+    "network",
+  );
+}
+
 export async function onPostsPagePrev({
   runtime,
 }: HelixClientHandlerContext): Promise<void> {
@@ -1347,6 +2054,24 @@ export async function onExternalDetailClose({
   runtime,
 }: HelixClientHandlerContext): Promise<void> {
   closeExternalDetail(runtime);
+}
+
+export async function onExternalMediaDetailOpen({
+  runtime,
+  element,
+}: HelixClientHandlerContext): Promise<void> {
+  const rowId = Number(element.dataset.rowId ?? "0");
+  if (!Number.isInteger(rowId) || rowId <= 0) {
+    return;
+  }
+
+  await openExternalMediaDetail(runtime, rowId);
+}
+
+export async function onExternalMediaDetailClose({
+  runtime,
+}: HelixClientHandlerContext): Promise<void> {
+  closeExternalMediaDetail(runtime);
 }
 
 function setTextByTargetId(targetId: string, value: string): void {

@@ -12,6 +12,8 @@ const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { href: "/interactions", label: "Interactions" },
   { href: "/external-grid", label: "External Grid" },
   { href: "/external-data", label: "External Data" },
+  { href: "/external-data-rich", label: "External Data Rich" },
+  { href: "/host-listings", label: "Host Listings" },
   { href: "/posts", label: "Posts" },
   { href: "/posts/new", label: "New Post" },
   { href: "/search", label: "Search" },

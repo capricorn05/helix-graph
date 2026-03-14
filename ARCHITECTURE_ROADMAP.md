@@ -8,6 +8,7 @@ Helix Graph is a **server-first, progressive-enhancement framework** that combin
 - **Thin client reconciler** for table/list updates using `reconcileKeyed()` and `schedulePatchBatch()`
 - **Binding-based event delegation** via `data-hx-bind` attributes and auto-generated binding map
 - **Post-request granular updates** (JSON fetch → patch batch) for data-driven interactions
+- **Compiled shell + server-composed slots** as the default page authoring pattern for maintainability
 
 ### Key Design Principles
 
@@ -50,6 +51,17 @@ The goal is to maintain SSR's benefits (SEO, fast initial render, predictable pa
 └─────────────────────────────────────────────────────────────┘
 ```
 
+### Current default page pattern (2026-03)
+
+For new pages, prefer:
+
+1. TSX view source in `views-tsx/`
+2. generated compiled artifact in `views/compiled/`
+3. server wrapper in `views/` that composes dynamic HTML and calls `render*CompiledView(...)`
+
+For high-frequency interactions (paging/sorting/filtering), add JSON endpoints + client DOM patching on top of SSR.
+Host Listings (`/host-listings`) is the reference for this combined approach.
+
 ---
 
 ## Development Roadmap
@@ -61,11 +73,12 @@ The goal is to maintain SSR's benefits (SEO, fast initial render, predictable pa
 - [x] **SSR + fragment swap** for page navigation
 - [x] **JSON + reconciliation** for table paging
 - [x] **Server actions** for mutations with invalidation
-- [ ] **Formal documentation** of the SSR → component → client binding pipeline
+- [x] **Formal documentation** of the SSR → component → client binding pipeline
+- [x] **Documented default authoring pattern** (compiled shell + optional hybrid JSON patching)
 - [ ] **Comprehensive test coverage** for reconciliation edge cases
 - [ ] **Perf benchmarks** comparing SSR fragment load vs. full page refresh
 
-**Status:** Mostly complete; reconciliation and actions tested via `npm run verify` (25/25 tests).
+**Status:** Mostly complete; reconciliation/actions flows are validated via `npm run verify`.
 
 ---
 
@@ -180,8 +193,11 @@ src/example/
   ├─ views/            — server wrappers (wire compiled + SSR)
   │  └─ compiled/      — auto-generated static templates
   ├─ client/           — all client handlers (bindings + actions)
+  ├─ shared/           — browser-safe helpers reusable by SSR wrappers + client modules
   └─ handlers/         — SSR page handlers + API endpoints
 ```
+
+Browser-delivered modules should stay inside `src/example/client`, `src/example/shared`, or `src/helix` so emitted ESM specifiers resolve to served URLs at runtime.
 
 Future (as islands grow):
 
@@ -261,5 +277,5 @@ When adding features to this roadmap:
 
 ---
 
-**Last Updated:** March 12, 2026  
+**Last Updated:** March 13, 2026  
 **Version:** 0.1 (pre-roadmap stabilization)

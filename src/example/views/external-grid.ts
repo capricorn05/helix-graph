@@ -18,54 +18,91 @@ function toNumber(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-const EXTERNAL_GRID_COLUMNS: UIEditableGridColumnDef<ExternalProductRow>[] = [
-  {
-    id: "id",
-    header: "ID",
-    accessorKey: "id",
-    valueType: "number",
-    format: ({ value }) => String(Math.floor(toNumber(value))),
-  },
-  {
-    id: "title",
-    header: "Title",
-    accessorKey: "title",
-    valueType: "string",
-  },
-  {
-    id: "brand",
-    header: "Brand",
-    accessorKey: "brand",
-    valueType: "string",
-  },
-  {
-    id: "category",
-    header: "Category",
-    accessorKey: "category",
-    valueType: "string",
-  },
-  {
-    id: "price",
-    header: "Price",
-    accessorKey: "price",
-    valueType: "number",
-    format: ({ value }) => toNumber(value).toFixed(2),
-  },
-  {
-    id: "stock",
-    header: "Stock",
-    accessorKey: "stock",
-    valueType: "number",
-    format: ({ value }) => String(Math.floor(toNumber(value))),
-  },
-  {
-    id: "rating",
-    header: "Rating",
-    accessorKey: "rating",
-    valueType: "number",
-    format: ({ value }) => toNumber(value).toFixed(1),
-  },
-];
+function getFilterValue(
+  productsPage: ExternalProductsPage,
+  columnId: string,
+): string {
+  return (
+    productsPage.filters[columnId as keyof typeof productsPage.filters] ?? ""
+  );
+}
+
+function createExternalGridColumns(
+  productsPage: ExternalProductsPage,
+): UIEditableGridColumnDef<ExternalProductRow>[] {
+  return [
+    {
+      id: "id",
+      header: "ID",
+      accessorKey: "id",
+      valueType: "number",
+      filter: {
+        value: getFilterValue(productsPage, "id"),
+      },
+      format: ({ value }) => String(Math.floor(toNumber(value))),
+    },
+    {
+      id: "title",
+      header: "Title",
+      accessorKey: "title",
+      valueType: "string",
+      filter: {
+        value: getFilterValue(productsPage, "title"),
+      },
+      wrap: false,
+    },
+    {
+      id: "brand",
+      header: "Brand",
+      accessorKey: "brand",
+      valueType: "string",
+      filter: {
+        value: getFilterValue(productsPage, "brand"),
+      },
+      wrap: false,
+    },
+    {
+      id: "category",
+      header: "Category",
+      accessorKey: "category",
+      valueType: "string",
+      filter: {
+        value: getFilterValue(productsPage, "category"),
+      },
+      wrap: false,
+    },
+    {
+      id: "price",
+      header: "Price",
+      accessorKey: "price",
+      valueType: "number",
+      filter: {
+        value: getFilterValue(productsPage, "price"),
+      },
+      format: ({ value }) => toNumber(value).toFixed(2),
+    },
+    {
+      id: "stock",
+      header: "Stock",
+      accessorKey: "stock",
+      valueType: "number",
+      filter: {
+        value: getFilterValue(productsPage, "stock"),
+      },
+      format: ({ value }) => String(Math.floor(toNumber(value))),
+    },
+    {
+      id: "rating",
+      header: "Rating",
+      accessorKey: "rating",
+      valueType: "number",
+      filter: {
+        value: getFilterValue(productsPage, "rating"),
+      },
+      format: ({ value }) => toNumber(value).toFixed(1),
+    },
+  ];
+}
 
 function renderGridPager(productsPage: ExternalProductsPage): string {
   return `<div class="pager">
@@ -91,6 +128,8 @@ function renderGridPager(productsPage: ExternalProductsPage): string {
       data-page-size="${productsPage.pageSize}"
       data-total="${productsPage.total}"
       data-total-pages="${productsPage.totalPages}"
+      data-sort-col="${productsPage.sortCol}"
+      data-sort-dir="${productsPage.sortDir}"
       hidden
     ></span>
   </div>`;
@@ -99,12 +138,12 @@ function renderGridPager(productsPage: ExternalProductsPage): string {
 function renderGridTable(productsPage: ExternalProductsPage): string {
   const tableHtml = uiEditableGrid<ExternalProductRow>({
     data: productsPage.rows,
-    columns: EXTERNAL_GRID_COLUMNS,
+    columns: createExternalGridColumns(productsPage),
     tableId: "external-grid-table",
     bodyId: "external-grid-body",
     listId: "external-grid-body",
     className: "excel-grid",
-    rowKey: (row, rowIndex) => `external-grid-row-${row.id}-${rowIndex + 1}`,
+    rowKey: (row) => `external-grid-row-${row.id}`,
   });
 
   return `${tableHtml}${renderGridPager(productsPage)}`;

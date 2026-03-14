@@ -4,10 +4,16 @@ import { usersPageResource } from "../resources/users.resource.js";
 import {
   EXTERNAL_PRODUCTS_PAGE_SIZE,
   externalProductsResource,
+  resolveExternalProductDetails,
 } from "../resources/external-products.resource.js";
 import { getUserStats } from "../domain.js";
 import { renderDocumentHead, renderPageEnd } from "../utils/html.js";
-import { parsePage, resolveUsersQuery } from "../utils/query.js";
+import {
+  createExternalProductsQuery,
+  parsePage,
+  resolveExternalProductsQuery,
+  resolveUsersQuery,
+} from "../utils/query.js";
 import { renderDashboardPage } from "../views/dashboard.js";
 import { renderSettingsPage } from "../views/settings.js";
 import { renderAboutPage } from "../views/about.js";
@@ -17,6 +23,7 @@ import {
   renderExternalProductsPage,
   renderExternalProductsComponent,
 } from "../views/external-products.js";
+import { renderExternalProductsRichPage } from "../views/external-products-rich.js";
 import {
   buildAppBindingMap,
   renderUsersLivePanel,
@@ -29,6 +36,7 @@ import { renderPostsPage } from "../views/posts.js";
 import { renderPostsCreatePage } from "../views/posts-create.js";
 import { renderInteractionsPage } from "../views/interactions.js";
 import { renderExternalGridPage } from "../views/external-grid.js";
+import { renderHostListingsPage } from "../views/host-listings.js";
 
 const appBindingMap = buildAppBindingMap();
 
@@ -60,11 +68,9 @@ function parseCoreTargetUrl(baseUrl: URL, rawPath: string | null): URL | null {
 
 async function renderAdminCoreForUrl(url: URL): Promise<AdminCoreView | null> {
   if (url.pathname === "/external-grid") {
-    const page = parsePage(url.searchParams.get("page"));
-    const productsPage = await externalProductsResource.read({
-      page,
-      pageSize: EXTERNAL_PRODUCTS_PAGE_SIZE,
-    });
+    const productsPage = await externalProductsResource.read(
+      resolveExternalProductsQuery(url, EXTERNAL_PRODUCTS_PAGE_SIZE),
+    );
 
     return {
       title: "External Grid",
@@ -144,17 +150,55 @@ async function renderAdminCoreForUrl(url: URL): Promise<AdminCoreView | null> {
   }
 
   if (url.pathname === "/external-data") {
-    const page = parsePage(url.searchParams.get("page"));
-    const productsPage = await externalProductsResource.read({
-      page,
-      pageSize: EXTERNAL_PRODUCTS_PAGE_SIZE,
-    });
+    const productsPage = await externalProductsResource.read(
+      resolveExternalProductsQuery(url, EXTERNAL_PRODUCTS_PAGE_SIZE),
+    );
 
     return {
       title: "External Data",
       content: renderExternalProductsPage(productsPage),
       snapshotCells: {
         externalData: {
+          page: productsPage.page,
+          pageSize: productsPage.pageSize,
+          total: productsPage.total,
+          totalPages: productsPage.totalPages,
+        },
+      },
+    };
+  }
+
+  if (url.pathname === "/external-data-rich") {
+    const productsPage = await externalProductsResource.read(
+      resolveExternalProductsQuery(url, EXTERNAL_PRODUCTS_PAGE_SIZE),
+    );
+    const rows = await resolveExternalProductDetails(productsPage.rows);
+
+    return {
+      title: "External Data Rich",
+      content: renderExternalProductsRichPage(productsPage, rows),
+      snapshotCells: {
+        externalDataRich: {
+          page: productsPage.page,
+          pageSize: productsPage.pageSize,
+          total: productsPage.total,
+          totalPages: productsPage.totalPages,
+        },
+      },
+    };
+  }
+
+  if (url.pathname === "/host-listings") {
+    const productsPage = await externalProductsResource.read(
+      resolveExternalProductsQuery(url, EXTERNAL_PRODUCTS_PAGE_SIZE),
+    );
+    const rows = await resolveExternalProductDetails(productsPage.rows);
+
+    return {
+      title: "Host Listings",
+      content: renderHostListingsPage(productsPage, rows),
+      snapshotCells: {
+        hostListings: {
           page: productsPage.page,
           pageSize: productsPage.pageSize,
           total: productsPage.total,
@@ -213,7 +257,7 @@ async function sendAdminPage(
   ctx.response.end();
 }
 
-export async function handlePosts(ctx: RouteContext): Promise<void> {
+async function handleAdminPageRoute(ctx: RouteContext): Promise<void> {
   const view = await renderAdminCoreForUrl(ctx.url);
   if (!view) {
     ctx.response.statusCode = 404;
@@ -224,104 +268,18 @@ export async function handlePosts(ctx: RouteContext): Promise<void> {
   await sendAdminPage(ctx, view);
 }
 
-export async function handlePostsNew(ctx: RouteContext): Promise<void> {
-  const view = await renderAdminCoreForUrl(ctx.url);
-  if (!view) {
-    ctx.response.statusCode = 404;
-    ctx.response.end("Not found");
-    return;
-  }
-
-  await sendAdminPage(ctx, view);
-}
-
-export async function handleInteractions(ctx: RouteContext): Promise<void> {
-  const view = await renderAdminCoreForUrl(ctx.url);
-  if (!view) {
-    ctx.response.statusCode = 404;
-    ctx.response.end("Not found");
-    return;
-  }
-
-  await sendAdminPage(ctx, view);
-}
-
-export async function handleExternalGrid(ctx: RouteContext): Promise<void> {
-  const view = await renderAdminCoreForUrl(ctx.url);
-  if (!view) {
-    ctx.response.statusCode = 404;
-    ctx.response.end("Not found");
-    return;
-  }
-
-  await sendAdminPage(ctx, view);
-}
-
-export async function handleDashboard(ctx: RouteContext): Promise<void> {
-  const view = await renderAdminCoreForUrl(ctx.url);
-  if (!view) {
-    ctx.response.statusCode = 404;
-    ctx.response.end("Not found");
-    return;
-  }
-
-  await sendAdminPage(ctx, view);
-}
-
-export async function handleSettings(ctx: RouteContext): Promise<void> {
-  const view = await renderAdminCoreForUrl(ctx.url);
-  if (!view) {
-    ctx.response.statusCode = 404;
-    ctx.response.end("Not found");
-    return;
-  }
-
-  await sendAdminPage(ctx, view);
-}
-
-export async function handleAbout(ctx: RouteContext): Promise<void> {
-  const view = await renderAdminCoreForUrl(ctx.url);
-  if (!view) {
-    ctx.response.statusCode = 404;
-    ctx.response.end("Not found");
-    return;
-  }
-
-  await sendAdminPage(ctx, view);
-}
-
-export async function handleSearch(ctx: RouteContext): Promise<void> {
-  const view = await renderAdminCoreForUrl(ctx.url);
-  if (!view) {
-    ctx.response.statusCode = 404;
-    ctx.response.end("Not found");
-    return;
-  }
-
-  await sendAdminPage(ctx, view);
-}
-
-export async function handleReports(ctx: RouteContext): Promise<void> {
-  const view = await renderAdminCoreForUrl(ctx.url);
-  if (!view) {
-    ctx.response.statusCode = 404;
-    ctx.response.end("Not found");
-    return;
-  }
-
-  await sendAdminPage(ctx, view);
-}
-
-export async function handleExternalData(ctx: RouteContext): Promise<void> {
-  const view = await renderAdminCoreForUrl(ctx.url);
-  if (!view) {
-    ctx.response.statusCode = 404;
-    ctx.response.end("Not found");
-    return;
-  }
-
-  await sendAdminPage(ctx, view);
-}
+export const handlePosts = handleAdminPageRoute;
+export const handlePostsNew = handleAdminPageRoute;
+export const handleInteractions = handleAdminPageRoute;
+export const handleExternalGrid = handleAdminPageRoute;
+export const handleDashboard = handleAdminPageRoute;
+export const handleSettings = handleAdminPageRoute;
+export const handleAbout = handleAdminPageRoute;
+export const handleSearch = handleAdminPageRoute;
+export const handleReports = handleAdminPageRoute;
+export const handleExternalData = handleAdminPageRoute;
+export const handleExternalDataRich = handleAdminPageRoute;
+export const handleHostListings = handleAdminPageRoute;
 
 export async function handleAppCoreComponent(ctx: RouteContext): Promise<void> {
   const targetUrl = parseCoreTargetUrl(
@@ -355,10 +313,11 @@ export async function handleUsersPanelComponent(
 
   if (panel === "external-data") {
     const externalPage = parsePage(ctx.url.searchParams.get("externalPage"));
-    const productsPage = await externalProductsResource.read({
-      page: externalPage,
-      pageSize: EXTERNAL_PRODUCTS_PAGE_SIZE,
-    });
+    const productsPage = await externalProductsResource.read(
+      createExternalProductsQuery(EXTERNAL_PRODUCTS_PAGE_SIZE, {
+        page: externalPage,
+      }),
+    );
 
     ctx.response.statusCode = 200;
     ctx.response.setHeader("content-type", "text/html; charset=utf-8");

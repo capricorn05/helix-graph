@@ -33,9 +33,45 @@ Health check: `http://localhost:4173/health`
 
 - One command before push/PR: `npm run verify`
 - Regenerate bindings only when binding ids or client handler exports change: `npm run gen:bindings`
+- Regenerate compiled TSX views when view source files change: `npm run gen:views`
 - Optional pre-commit automation: `npm run hooks:install`
 
 The installed pre-commit hook runs `npm run verify` automatically.
+
+## Recommended rendering pattern
+
+For new pages, use this default split:
+
+1. **TSX source for shell/layout** (`src/example/views-tsx/*.view.tsx`)
+2. **Generated compiled artifact** (`src/example/views/compiled/*.compiled.ts`)
+3. **Thin server wrapper** (`src/example/views/*.ts`) that passes dynamic HTML slots/props into `render*CompiledView(...)`
+
+When interaction is high-frequency (paging/sort/filter), add a hybrid data path:
+
+- first load: SSR page HTML
+- subsequent updates: JSON endpoint + targeted DOM patch on the client
+
+Reference implementation: Host Listings (`/host-listings`) now follows this pattern.
+
+## End-to-end: add a page in Helix
+
+For the full walkthrough (including troubleshooting), see `END_TO_END_FRAMEWORK_GUIDE.md`.
+
+1. Add a TSX page source in `src/example/views-tsx/your-page.view.tsx`.
+2. Generate compiled artifacts with `npm run gen:views`.
+3. Add a server wrapper in `src/example/views/your-page.ts` that composes dynamic table/card HTML and calls `renderYourPageCompiledView(...)`.
+4. Add/extend page handler logic in `src/example/handlers/pages.handler.ts`.
+5. Register route in `src/example/routes/index.ts`.
+6. If the page needs incremental updates, add a JSON endpoint in `src/example/handlers/api.handler.ts` and a client module in `src/example/client/*.ts`.
+7. If using `data-hx-bind`, export matching handlers from `src/example/client/actions.ts` and run `npm run gen:bindings`.
+8. Validate with `npm run build` and `npm run test` (or `npm run verify` before push).
+
+### Quick checklist for hybrid pages
+
+- Keep durable data derivation on the server (resource read + query parsing).
+- Keep client updates scoped to stable `data-hx-id` targets.
+- Preserve URL state with `pushState` and handle `popstate`.
+- Prefer fallback to full navigation when JSON patching fails.
 
 ## Project layout
 
@@ -49,6 +85,7 @@ The installed pre-commit hook runs `npm run verify` automatically.
 - `src/example/server.ts` — streaming SSR server + API/action endpoints
 - `src/example/client/bootstrap.ts` — tiny client delegator bootstrap
 - `src/example/client/actions.ts` — lazy-loaded handlers (paging/sort/form)
+- `src/example/shared/*` — browser-safe modules shared by SSR wrappers and client chunks
 - `src/example/domain.ts` — in-memory users domain model
 - `src/example/utils/query.ts` — URL/query parsing for users paging/sorting
 - `src/example/utils/layout.ts` — app chrome + app-level layout CSS using Helix theme API
@@ -141,6 +178,15 @@ The admin nav now includes **New Post** (`/posts/new`) with a server-backed crea
 After a successful submit, the client navigates back to `/posts?page=1`, and the new post
 appears at the top of the posts table.
 
+### External Data Rich page
+
+The admin nav includes **External Data Rich** (`/external-data-rich`) for a higher-density
+table rendering scenario.
+
+- Same 10,000-row external dataset and paging flow as `/external-data`
+- Adds per-row thumbnail media, additional badges, and heavier conditional row styling
+- Uses dedicated client bindings + endpoint (`/api/external-data-rich`) for incremental updates
+
 ## Example usage of framework primitives
 
 ```ts
@@ -192,6 +238,6 @@ const createUser = action(
 
 ## Notes
 
-- This is a focused MVP, not a full TSX compiler yet.
+- TSX compiled-view support is currently MVP-level and intentionally constrained.
 - The architecture is structured so TSX compilation, deeper graph extraction, and chunk planning can be layered in incrementally.
 - React/shadcn component islands are an optional adapter path, not a core Helix requirement.

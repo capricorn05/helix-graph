@@ -1,16 +1,27 @@
-import { promises as fs } from "node:fs";
+import { promises as fs, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
+const SOURCE_EXTENSIONS = [".ts", ".tsx"];
 const DISALLOWED_IMPORT = /(?:^|\/)helix\/index(?:\.js)?$/;
 
-function isClientSourceFile(filePath) {
+function isBrowserSourceFile(filePath) {
   const parts = filePath.split(path.sep);
-  return parts.includes("client") && filePath.endsWith(".ts");
+  if (!filePath.endsWith(".ts")) {
+    return false;
+  }
+
+  const exampleIndex = parts.lastIndexOf("example");
+  if (exampleIndex === -1) {
+    return false;
+  }
+
+  const segment = parts[exampleIndex + 1];
+  return segment === "client" || segment === "shared";
 }
 
-async function listClientFiles(rootDir) {
+async function listBrowserFiles(rootDir) {
   const result = [];
 
   async function walk(currentDir) {
@@ -22,7 +33,7 @@ async function listClientFiles(rootDir) {
         continue;
       }
 
-      if (isClientSourceFile(absolutePath)) {
+      if (isBrowserSourceFile(absolutePath)) {
         result.push(absolutePath);
       }
     }
@@ -30,6 +41,67 @@ async function listClientFiles(rootDir) {
 
   await walk(rootDir);
   return result.sort();
+}
+
+function normalizeSpecifierForResolution(specifier) {
+  if (specifier.endsWith(".js")) {
+    return specifier.slice(0, -3);
+  }
+
+  return specifier;
+}
+
+const fsStatCache = new Map();
+
+function resolveModulePath(fromFilePath, specifier) {
+  if (!specifier.startsWith(".")) {
+    return null;
+  }
+
+  const base = path.resolve(
+    path.dirname(fromFilePath),
+    normalizeSpecifierForResolution(specifier),
+  );
+
+  const candidates = [base];
+  for (const ext of SOURCE_EXTENSIONS) {
+    candidates.push(`${base}${ext}`);
+    candidates.push(path.join(base, `index${ext}`));
+  }
+
+  for (const candidate of candidates) {
+    if (fsStatCache.get(candidate) === true) {
+      return candidate;
+    }
+
+    if (fsStatCache.get(candidate) === false) {
+      continue;
+    }
+
+    try {
+      const stat = statSync(candidate);
+      const exists = stat.isFile();
+      fsStatCache.set(candidate, exists);
+      if (exists) {
+        return candidate;
+      }
+    } catch {
+      fsStatCache.set(candidate, false);
+    }
+  }
+
+  return null;
+}
+
+function isExampleBrowserSafePath(filePath) {
+  const parts = filePath.split(path.sep);
+  const exampleIndex = parts.lastIndexOf("example");
+  if (exampleIndex === -1) {
+    return false;
+  }
+
+  const segment = parts[exampleIndex + 1];
+  return segment === "client" || segment === "shared";
 }
 
 function collectViolations(sourceFile) {
@@ -52,12 +124,47 @@ function collectViolations(sourceFile) {
     });
   }
 
+  function addBoundaryViolation(node, specifier, kind) {
+    const resolvedPath = resolveModulePath(sourceFile.fileName, specifier);
+    if (!resolvedPath) {
+      return;
+    }
+
+    if (!resolvedPath.includes(`${path.sep}example${path.sep}`)) {
+      return;
+    }
+
+    if (isExampleBrowserSafePath(resolvedPath)) {
+      return;
+    }
+
+    const position = sourceFile.getLineAndCharacterOfPosition(
+      node.getStart(sourceFile),
+    );
+    violations.push({
+      filePath: sourceFile.fileName,
+      line: position.line + 1,
+      column: position.character + 1,
+      specifier,
+      kind,
+      reason:
+        "Browser modules may only import from src/example/client, src/example/shared, or src/helix",
+    });
+  }
+
   function visit(node) {
     if (
       ts.isImportDeclaration(node) &&
       ts.isStringLiteral(node.moduleSpecifier)
     ) {
       addViolation(node.moduleSpecifier, node.moduleSpecifier.text, "import");
+      if (!node.importClause?.isTypeOnly) {
+        addBoundaryViolation(
+          node.moduleSpecifier,
+          node.moduleSpecifier.text,
+          "import",
+        );
+      }
     }
 
     if (
@@ -66,6 +173,13 @@ function collectViolations(sourceFile) {
       ts.isStringLiteral(node.moduleSpecifier)
     ) {
       addViolation(node.moduleSpecifier, node.moduleSpecifier.text, "export");
+      if (!node.isTypeOnly) {
+        addBoundaryViolation(
+          node.moduleSpecifier,
+          node.moduleSpecifier.text,
+          "export",
+        );
+      }
     }
 
     if (
@@ -75,6 +189,11 @@ function collectViolations(sourceFile) {
       ts.isStringLiteral(node.arguments[0])
     ) {
       addViolation(node.arguments[0], node.arguments[0].text, "dynamic import");
+      addBoundaryViolation(
+        node.arguments[0],
+        node.arguments[0].text,
+        "dynamic import",
+      );
     }
 
     if (
@@ -85,6 +204,11 @@ function collectViolations(sourceFile) {
       ts.isStringLiteral(node.arguments[0])
     ) {
       addViolation(node.arguments[0], node.arguments[0].text, "require");
+      addBoundaryViolation(
+        node.arguments[0],
+        node.arguments[0].text,
+        "require",
+      );
     }
 
     if (
@@ -110,10 +234,10 @@ async function main() {
   const scriptDir = path.dirname(fileURLToPath(import.meta.url));
   const workspaceRoot = path.resolve(scriptDir, "..");
   const srcRoot = path.join(workspaceRoot, "src");
-  const clientFiles = await listClientFiles(srcRoot);
+  const browserFiles = await listBrowserFiles(srcRoot);
   const violations = [];
 
-  for (const filePath of clientFiles) {
+  for (const filePath of browserFiles) {
     const content = await fs.readFile(filePath, "utf8");
     const sourceFile = ts.createSourceFile(
       filePath,
@@ -129,17 +253,18 @@ async function main() {
     const relativeViolations = violations
       .map((violation) => {
         const relativePath = path.relative(workspaceRoot, violation.filePath);
-        return `- ${relativePath}:${violation.line}:${violation.column} ${violation.kind} \"${violation.specifier}\"`;
+        const reasonSuffix = violation.reason ? ` — ${violation.reason}` : "";
+        return `- ${relativePath}:${violation.line}:${violation.column} ${violation.kind} \"${violation.specifier}\"${reasonSuffix}`;
       })
       .join("\n");
 
     throw new Error(
-      `Disallowed client imports from helix/index detected. Import browser-safe modules directly instead.\n${relativeViolations}`,
+      `Disallowed browser imports detected. Import browser-safe modules directly instead.\n${relativeViolations}`,
     );
   }
 
   process.stdout.write(
-    `Client import guard passed (${clientFiles.length} files scanned).\n`,
+    `Browser import guard passed (${browserFiles.length} files scanned).\n`,
   );
 }
 

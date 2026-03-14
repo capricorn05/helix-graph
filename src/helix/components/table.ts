@@ -1,5 +1,5 @@
 import { escapeHtml } from "../html.js";
-import { uiTable } from "../ui.js";
+import { uiInput, uiSelect, uiTable } from "../ui.js";
 import type { HtmlAttributes } from "../ui.js";
 
 export interface UIDataTableCellContext<TRow> {
@@ -9,16 +9,37 @@ export interface UIDataTableCellContext<TRow> {
   value: unknown;
 }
 
+export type UITableColumnFilterType = "text" | "search" | "number" | "select";
+
+export interface UITableColumnFilterOption {
+  value: string;
+  label: string;
+  selected?: boolean;
+  disabled?: boolean;
+}
+
+export interface UITableColumnFilterDef {
+  type?: UITableColumnFilterType;
+  name?: string;
+  placeholder?: string;
+  value?: string;
+  options?: UITableColumnFilterOption[];
+  attrs?: HtmlAttributes;
+}
+
 export interface UIDataTableColumnDef<TRow> {
   id: string;
   header?: string;
   headerHtml?: string;
   accessorKey?: keyof TRow;
   cell?: (context: UIDataTableCellContext<TRow>) => string;
+  filter?: boolean | UITableColumnFilterDef;
   headerAttrs?: HtmlAttributes;
   cellAttrs?:
     | HtmlAttributes
     | ((context: UIDataTableCellContext<TRow>) => HtmlAttributes);
+  /** When false, disables wrapping and clips overflow. Defaults to true (wrapping enabled). */
+  wrap?: boolean;
 }
 
 export interface UIDataTableOptions<TRow> {
@@ -44,10 +65,13 @@ export interface UIEditableGridColumnDef<TRow> {
   sortable?: boolean;
   editable?: boolean;
   format?: (context: UIDataTableCellContext<TRow>) => string;
+  filter?: boolean | UITableColumnFilterDef;
   headerAttrs?: HtmlAttributes;
   cellAttrs?:
     | HtmlAttributes
     | ((context: UIDataTableCellContext<TRow>) => HtmlAttributes);
+  /** When false, disables wrapping and clips overflow. Defaults to true (wrapping enabled). */
+  wrap?: boolean;
 }
 
 export interface UIEditableGridOptions<TRow> {
@@ -99,6 +123,121 @@ function resolveCellAttrs<TRow>(
   return cellAttrs ?? {};
 }
 
+function mergeStyle(
+  attrs: HtmlAttributes,
+  declaration: string,
+): HtmlAttributes {
+  const current = attrs["style"];
+  if (
+    current === undefined ||
+    current === null ||
+    current === false ||
+    current === ""
+  ) {
+    return {
+      ...attrs,
+      style: declaration,
+    };
+  }
+
+  return {
+    ...attrs,
+    style: `${String(current)};${declaration}`,
+  };
+}
+
+function applyWrap(
+  attrs: HtmlAttributes,
+  wrap: boolean | undefined,
+): HtmlAttributes {
+  if (wrap !== false) {
+    return attrs;
+  }
+
+  return {
+    ...mergeStyle(attrs, "white-space:nowrap"),
+    "data-hx-nowrap": "true",
+  };
+}
+
+function resolveColumnFilter(
+  filter: boolean | UITableColumnFilterDef | undefined,
+  fallbackType: UITableColumnFilterType,
+): UITableColumnFilterDef | null {
+  if (!filter) {
+    return null;
+  }
+
+  if (filter === true) {
+    return { type: fallbackType };
+  }
+
+  return {
+    ...filter,
+    type: filter.type ?? fallbackType,
+  };
+}
+
+function renderColumnFilter(
+  columnId: string,
+  label: string,
+  filter: boolean | UITableColumnFilterDef | undefined,
+  fallbackType: UITableColumnFilterType,
+): string {
+  const resolvedFilter = resolveColumnFilter(filter, fallbackType);
+  if (!resolvedFilter) {
+    return "";
+  }
+
+  const filterType = resolvedFilter.type ?? fallbackType;
+  const value = resolvedFilter.value ?? "";
+  const attrs: HtmlAttributes = {
+    "data-hx-column-filter": columnId,
+    "data-hx-column-filter-type": filterType,
+    "aria-label": `Filter ${label}`,
+    ...(resolvedFilter.attrs ?? {}),
+  };
+
+  if (filterType === "select") {
+    const hasExplicitValue = resolvedFilter.value !== undefined;
+    const options = [
+      {
+        value: "",
+        label: resolvedFilter.placeholder ?? "All",
+        selected: value === "",
+      },
+      ...(resolvedFilter.options ?? []).map((option) => ({
+        ...option,
+        selected: hasExplicitValue
+          ? option.value === value
+          : (option.selected ?? false),
+      })),
+    ];
+
+    return uiSelect({
+      name: resolvedFilter.name ?? columnId,
+      className: "hx-table__filter-control",
+      options,
+      attrs,
+    });
+  }
+
+  return uiInput({
+    name: resolvedFilter.name ?? columnId,
+    type: filterType,
+    value,
+    placeholder:
+      resolvedFilter.placeholder ??
+      (filterType === "number" ? `Filter ${label}` : `Search ${label}`),
+    className: "hx-table__filter-control",
+    attrs,
+  });
+}
+
+function hasRenderedFilters(filterCellsHtml: string[]): boolean {
+  return filterCellsHtml.some((cellHtml) => cellHtml.length > 0);
+}
+
 function resolveEditableGridCellValue<TRow>(
   row: TRow,
   rowIndex: number,
@@ -140,6 +279,15 @@ export function uiDataTable<TRow>(options: UIDataTableOptions<TRow>): string {
   const headerCellAttrs = options.columns.map(
     (column) => column.headerAttrs ?? {},
   );
+  const filterCellsHtml = options.columns.map((column) =>
+    renderColumnFilter(
+      column.id,
+      column.header ?? column.id,
+      column.filter,
+      "search",
+    ),
+  );
+  const hasFilters = hasRenderedFilters(filterCellsHtml);
 
   const rowsHtml: string[][] = [];
   const rowAttrs: HtmlAttributes[] = [];
@@ -166,7 +314,9 @@ export function uiDataTable<TRow>(options: UIDataTableOptions<TRow>): string {
           );
 
       renderedRowCells.push(renderedCell);
-      renderedCellAttrs.push(resolveCellAttrs(column.cellAttrs, context));
+      renderedCellAttrs.push(
+        applyWrap(resolveCellAttrs(column.cellAttrs, context), column.wrap),
+      );
     }
 
     rowsHtml.push(renderedRowCells);
@@ -175,8 +325,15 @@ export function uiDataTable<TRow>(options: UIDataTableOptions<TRow>): string {
   }
 
   return uiTable({
-    headersHtml,
-    headerCellAttrs,
+    headersHtml: hasFilters ? undefined : headersHtml,
+    headerCellAttrs: hasFilters ? undefined : headerCellAttrs,
+    headRowsHtml: hasFilters ? [headersHtml, filterCellsHtml] : undefined,
+    headRowAttrs: hasFilters
+      ? [{}, { class: "hx-table__filter-row" }]
+      : undefined,
+    headCellAttrs: hasFilters
+      ? [headerCellAttrs, options.columns.map(() => ({}))]
+      : undefined,
     rowsHtml,
     rowAttrs,
     cellAttrs,
@@ -196,6 +353,15 @@ export function uiEditableGrid<TRow>(
   const headerCellAttrs = options.columns.map(
     (column) => column.headerAttrs ?? {},
   );
+  const filterCellsHtml = options.columns.map((column) =>
+    renderColumnFilter(
+      column.id,
+      column.header,
+      column.filter,
+      column.valueType === "number" ? "number" : "search",
+    ),
+  );
+  const hasFilters = hasRenderedFilters(filterCellsHtml);
 
   const rowsHtml: string[][] = [];
   const rowAttrs: HtmlAttributes[] = [];
@@ -231,12 +397,17 @@ export function uiEditableGrid<TRow>(
           );
 
       const isEditable = column.editable ?? true;
-      const mergedCellAttrs = {
-        "data-grid-col": column.id,
-        "data-grid-value-type": column.valueType ?? "string",
-        ...(isEditable ? { contenteditable: "true", spellcheck: "false" } : {}),
-        ...resolveCellAttrs(column.cellAttrs, context),
-      };
+      const mergedCellAttrs = applyWrap(
+        {
+          "data-grid-col": column.id,
+          "data-grid-value-type": column.valueType ?? "string",
+          ...(isEditable
+            ? { contenteditable: "true", spellcheck: "false" }
+            : {}),
+          ...resolveCellAttrs(column.cellAttrs, context),
+        },
+        column.wrap,
+      );
 
       renderedRowCells.push(renderedCell);
       renderedCellAttrs.push(mergedCellAttrs);
@@ -247,8 +418,15 @@ export function uiEditableGrid<TRow>(
   }
 
   return uiTable({
-    headersHtml,
-    headerCellAttrs,
+    headersHtml: hasFilters ? undefined : headersHtml,
+    headerCellAttrs: hasFilters ? undefined : headerCellAttrs,
+    headRowsHtml: hasFilters ? [headersHtml, filterCellsHtml] : undefined,
+    headRowAttrs: hasFilters
+      ? [{}, { class: "hx-table__filter-row" }]
+      : undefined,
+    headCellAttrs: hasFilters
+      ? [headerCellAttrs, options.columns.map(() => ({}))]
+      : undefined,
     rowsHtml,
     rowAttrs,
     cellAttrs,

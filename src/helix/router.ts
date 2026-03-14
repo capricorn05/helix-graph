@@ -21,7 +21,14 @@ import { nextNodeId, runtimeGraph } from "./graph.js";
 // Types
 // ---------------------------------------------------------------------------
 
-export type RouteMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS";
+export type RouteMethod =
+  | "GET"
+  | "POST"
+  | "PUT"
+  | "PATCH"
+  | "DELETE"
+  | "HEAD"
+  | "OPTIONS";
 
 /** Path parameters extracted from URL pattern segments (e.g. `:id` → `{ id: "42" }`). */
 export interface RouteParams {
@@ -38,7 +45,7 @@ export interface RouteContext<P extends RouteParams = RouteParams> {
 }
 
 export type RouteHandler<P extends RouteParams = RouteParams> = (
-  ctx: RouteContext<P>
+  ctx: RouteContext<P>,
 ) => Promise<void> | void;
 
 export interface RouteDefinition<P extends RouteParams = RouteParams> {
@@ -89,7 +96,10 @@ function pathSegments(pathname: string): string[] {
   return pathname.split("/").filter((segment) => segment.length > 0);
 }
 
-function matchCompiled(tokens: readonly SegmentToken[], segments: readonly string[]): RouteParams | null {
+function matchCompiled(
+  tokens: readonly SegmentToken[],
+  segments: readonly string[],
+): RouteParams | null {
   const params: RouteParams = {};
   let segmentIndex = 0;
 
@@ -143,7 +153,7 @@ function matchCompiled(tokens: readonly SegmentToken[], segments: readonly strin
 export function defineRoute<P extends RouteParams = RouteParams>(
   method: RouteMethod | "*",
   pattern: string,
-  handler: RouteHandler<P>
+  handler: RouteHandler<P>,
 ): RouteDefinition<P> {
   const id = nextNodeId("route");
 
@@ -151,7 +161,7 @@ export function defineRoute<P extends RouteParams = RouteParams>(
     id,
     type: "RouteNode",
     label: `${method} ${pattern}`,
-    meta: { method, pattern }
+    meta: { method, pattern },
   });
 
   return { id, method, pattern, handler };
@@ -166,7 +176,11 @@ export interface HelixRouter {
    * Try to match `request` against registered routes.
    * Returns `true` if a route matched and handled the response, `false` otherwise.
    */
-  dispatch(request: IncomingMessage, response: ServerResponse, url: URL): Promise<boolean>;
+  dispatch(
+    request: IncomingMessage,
+    response: ServerResponse,
+    url: URL,
+  ): Promise<boolean>;
 
   /** All registered route definitions (for introspection / manifest generation). */
   getRoutes(): ReadonlyArray<RouteDefinition<any>>;
@@ -190,7 +204,9 @@ function methodKey(method: RouteMethod | "*"): RouteMethod | "*" {
   return method;
 }
 
-function firstStaticSegment(tokens: readonly SegmentToken[]): string | undefined {
+function firstStaticSegment(
+  tokens: readonly SegmentToken[],
+): string | undefined {
   for (const token of tokens) {
     if (token.kind === "static") {
       return token.value;
@@ -233,19 +249,24 @@ function methodCandidates(method: RouteMethod): Array<RouteMethod | "*"> {
  * ]);
  * ```
  */
-export function createRouter(routes: ReadonlyArray<RouteDefinition<any>>): HelixRouter {
+export function createRouter(
+  routes: ReadonlyArray<RouteDefinition<any>>,
+): HelixRouter {
   const internal: InternalRoute[] = routes.map((def, index) => ({
     definition: def,
     compiled: compilePattern(def.pattern),
-    index
+    index,
   }));
 
-  const indexed = new Map<RouteMethod | "*", Map<string, Map<string, RouteBucket>>>();
+  const indexed = new Map<
+    RouteMethod | "*",
+    Map<string, Map<string, RouteBucket>>
+  >();
 
   const ensureBucket = (
     method: RouteMethod | "*",
     lengthKey: string,
-    staticHead: string
+    staticHead: string,
   ): RouteBucket => {
     let lengthMap = indexed.get(method);
     if (!lengthMap) {
@@ -276,7 +297,10 @@ export function createRouter(routes: ReadonlyArray<RouteDefinition<any>>): Helix
     bucket.routes.push(route);
   }
 
-  const gatherCandidates = (method: RouteMethod, pathname: string): InternalRoute[] => {
+  const gatherCandidates = (
+    method: RouteMethod,
+    pathname: string,
+  ): InternalRoute[] => {
     const segments = pathSegments(pathname);
     const head = segments[0] ?? "";
     const candidates: InternalRoute[] = [];
@@ -328,14 +352,16 @@ export function createRouter(routes: ReadonlyArray<RouteDefinition<any>>): Helix
           request,
           response,
           url,
-          params: params as Parameters<typeof route.definition.handler>[0]["params"],
-          searchParams: url.searchParams
+          params: params as Parameters<
+            typeof route.definition.handler
+          >[0]["params"],
+          searchParams: url.searchParams,
         });
 
         return true;
       }
 
       return false;
-    }
+    },
   };
 }

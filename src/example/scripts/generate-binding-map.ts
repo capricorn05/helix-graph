@@ -30,6 +30,10 @@ const ACTION_ID_OVERRIDES = new Map<string, string>([
   ["external-page-next", "external-page"],
   ["external-detail-open", "external-detail"],
   ["external-detail-close", "external-detail"],
+  ["external-media-page-prev", "external-media-page"],
+  ["external-media-page-next", "external-media-page"],
+  ["external-media-detail-open", "external-media-detail"],
+  ["external-media-detail-close", "external-media-detail"],
   ["posts-page-prev", "posts-page"],
   ["posts-page-next", "posts-page"],
 ]);

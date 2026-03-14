@@ -4,11 +4,12 @@ import type { RouteContext } from "../../helix/index.js";
 import { serveStaticTextFile } from "../../helix/node-http.js";
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname  = path.dirname(__filename);
+const __dirname = path.dirname(__filename);
 const ROOT = path.join(__dirname, "..");
 const STATIC_MOUNTS = [
   { prefix: "/client/", directory: path.join(ROOT, "client") },
-  { prefix: "/helix/", directory: path.join(ROOT, "..", "helix") }
+  { prefix: "/shared/", directory: path.join(ROOT, "shared") },
+  { prefix: "/helix/", directory: path.join(ROOT, "..", "helix") },
 ] as const;
 
 export async function handleStaticFile(ctx: RouteContext): Promise<void> {

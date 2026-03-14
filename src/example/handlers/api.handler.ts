@@ -5,6 +5,7 @@ import {
   EXTERNAL_PRODUCTS_PAGE_SIZE,
   externalProductsResource,
   getExternalProductDetailById,
+  resolveExternalProductDetails,
 } from "../resources/external-products.resource.js";
 import {
   POSTS_PAGE_SIZE,
@@ -26,7 +27,11 @@ import {
   validateCreatePostInput,
   validateCreateUserInput,
 } from "../utils/http.js";
-import { parsePage, resolveUsersQuery } from "../utils/query.js";
+import {
+  parsePage,
+  resolveExternalProductsQuery,
+  resolveUsersQuery,
+} from "../utils/query.js";
 
 export async function handleUsersApi(ctx: RouteContext): Promise<void> {
   const query = resolveUsersQuery(ctx.url);
@@ -84,12 +89,36 @@ export async function handleUserStats(ctx: RouteContext): Promise<void> {
 }
 
 export async function handleExternalDataApi(ctx: RouteContext): Promise<void> {
-  const page = parsePage(ctx.url.searchParams.get("page"));
-  const productsPage = await externalProductsResource.read({
-    page,
-    pageSize: EXTERNAL_PRODUCTS_PAGE_SIZE,
-  });
+  const productsPage = await externalProductsResource.read(
+    resolveExternalProductsQuery(ctx.url, EXTERNAL_PRODUCTS_PAGE_SIZE),
+  );
   sendJson(ctx, 200, productsPage);
+}
+
+export async function handleExternalDataRichApi(
+  ctx: RouteContext,
+): Promise<void> {
+  const productsPage = await externalProductsResource.read(
+    resolveExternalProductsQuery(ctx.url, EXTERNAL_PRODUCTS_PAGE_SIZE),
+  );
+  const rows = await resolveExternalProductDetails(productsPage.rows);
+
+  sendJson(ctx, 200, {
+    ...productsPage,
+    rows,
+  });
+}
+
+export async function handleHostListingsApi(ctx: RouteContext): Promise<void> {
+  const productsPage = await externalProductsResource.read(
+    resolveExternalProductsQuery(ctx.url, EXTERNAL_PRODUCTS_PAGE_SIZE),
+  );
+  const rows = await resolveExternalProductDetails(productsPage.rows);
+
+  sendJson(ctx, 200, {
+    ...productsPage,
+    rows,
+  });
 }
 
 export async function handlePostsApi(ctx: RouteContext): Promise<void> {

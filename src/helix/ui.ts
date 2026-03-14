@@ -43,8 +43,12 @@ export function uiButton(options: UIButtonOptions): string {
     id: options.id,
     "data-hx-bind": options.bind,
     disabled: options.disabled ?? false,
-    class: joinClassNames("hx-btn", variant === "primary" ? undefined : `hx-btn--${variant}`, options.className),
-    ...(options.attrs ?? {})
+    class: joinClassNames(
+      "hx-btn",
+      variant === "primary" ? undefined : `hx-btn--${variant}`,
+      options.className,
+    ),
+    ...(options.attrs ?? {}),
   };
 
   const content = options.contentHtml ?? escapeHtml(options.label ?? "");
@@ -65,21 +69,26 @@ export function uiCard(options: UICardOptions): string {
   const tag = options.as ?? "section";
   const attrs: HtmlAttributes = {
     class: joinClassNames("hx-card", options.className),
-    ...(options.attrs ?? {})
+    ...(options.attrs ?? {}),
   };
 
   const headerParts: string[] = [];
   if (options.title) {
-    headerParts.push(`<h3 class="hx-card__title">${escapeHtml(options.title)}</h3>`);
+    headerParts.push(
+      `<h3 class="hx-card__title">${escapeHtml(options.title)}</h3>`,
+    );
   }
 
   if (options.description) {
-    headerParts.push(`<p class="hx-card__description">${escapeHtml(options.description)}</p>`);
+    headerParts.push(
+      `<p class="hx-card__description">${escapeHtml(options.description)}</p>`,
+    );
   }
 
-  const headerHtml = headerParts.length > 0
-    ? `<header class="hx-card__header">${headerParts.join("")}</header>`
-    : "";
+  const headerHtml =
+    headerParts.length > 0
+      ? `<header class="hx-card__header">${headerParts.join("")}</header>`
+      : "";
 
   const footerHtml = options.footer
     ? `<footer class="hx-card__footer">${options.footer}</footer>`
@@ -90,7 +99,14 @@ export function uiCard(options: UICardOptions): string {
 
 export interface UIInputOptions {
   name: string;
-  type?: "text" | "email" | "password" | "number" | "search" | "url" | "checkbox";
+  type?:
+    | "text"
+    | "email"
+    | "password"
+    | "number"
+    | "search"
+    | "url"
+    | "checkbox";
   id?: string;
   value?: string;
   placeholder?: string;
@@ -112,7 +128,7 @@ export function uiInput(options: UIInputOptions): string {
     required: options.required ?? false,
     disabled: options.disabled ?? false,
     class: joinClassNames("hx-input", options.className),
-    ...(options.attrs ?? {})
+    ...(options.attrs ?? {}),
   };
 
   return `<input${renderAttributes(attrs)} />`;
@@ -142,7 +158,7 @@ export function uiSelect(options: UISelectOptions): string {
     required: options.required ?? false,
     disabled: options.disabled ?? false,
     class: joinClassNames("hx-input", options.className),
-    ...(options.attrs ?? {})
+    ...(options.attrs ?? {}),
   };
 
   const optionsHtml = options.options
@@ -150,7 +166,7 @@ export function uiSelect(options: UISelectOptions): string {
       const optionAttrs: HtmlAttributes = {
         value: option.value,
         selected: option.selected ?? false,
-        disabled: option.disabled ?? false
+        disabled: option.disabled ?? false,
       };
 
       return `<option${renderAttributes(optionAttrs)}>${escapeHtml(option.label)}</option>`;
@@ -164,6 +180,9 @@ export interface UITableOptions {
   headers?: string[];
   headersHtml?: string[];
   headerCellAttrs?: HtmlAttributes[];
+  headRowsHtml?: string[][];
+  headRowAttrs?: HtmlAttributes[];
+  headCellAttrs?: HtmlAttributes[][];
   rows?: string[][];
   rowsHtml?: string[][];
   rowAttrs?: HtmlAttributes[];
@@ -177,17 +196,42 @@ export interface UITableOptions {
 export function uiTable(options: UITableOptions): string {
   const attrs: HtmlAttributes = {
     class: joinClassNames("hx-table", options.className),
-    ...(options.attrs ?? {})
+    ...(options.attrs ?? {}),
   };
 
-  const headersHtml = (options.headersHtml ?? options.headers?.map((header) => escapeHtml(header)) ?? [])
+  const headersHtml = (
+    options.headersHtml ??
+    options.headers?.map((header) => escapeHtml(header)) ??
+    []
+  )
     .map((header, headerIndex) => {
       const headerAttrs = options.headerCellAttrs?.[headerIndex] ?? {};
       return `<th${renderAttributes(headerAttrs)}>${header}</th>`;
     })
     .join("");
 
-  const rowsHtml = (options.rowsHtml ?? options.rows?.map((row) => row.map((cell) => escapeHtml(cell))) ?? [])
+  const headRowsHtml = options.headRowsHtml
+    ? options.headRowsHtml
+        .map((row, rowIndex) => {
+          const rowAttrs = options.headRowAttrs?.[rowIndex] ?? {};
+          const cellsHtml = row
+            .map((cell, cellIndex) => {
+              const cellAttrs =
+                options.headCellAttrs?.[rowIndex]?.[cellIndex] ?? {};
+              return `<th${renderAttributes(cellAttrs)}>${cell}</th>`;
+            })
+            .join("");
+
+          return `<tr${renderAttributes(rowAttrs)}>${cellsHtml}</tr>`;
+        })
+        .join("")
+    : `<tr>${headersHtml}</tr>`;
+
+  const rowsHtml = (
+    options.rowsHtml ??
+    options.rows?.map((row) => row.map((cell) => escapeHtml(cell))) ??
+    []
+  )
     .map((row, rowIndex) => {
       const rowAttrs = options.rowAttrs?.[rowIndex] ?? {};
       const cellsHtml = row
@@ -203,5 +247,5 @@ export function uiTable(options: UITableOptions): string {
 
   const headAttrs = options.headAttrs ?? {};
   const bodyAttrs = options.bodyAttrs ?? {};
-  return `<table${renderAttributes(attrs)}><thead${renderAttributes(headAttrs)}><tr>${headersHtml}</tr></thead><tbody${renderAttributes(bodyAttrs)}>${rowsHtml}</tbody></table>`;
+  return `<table${renderAttributes(attrs)}><thead${renderAttributes(headAttrs)}>${headRowsHtml}</thead><tbody${renderAttributes(bodyAttrs)}>${rowsHtml}</tbody></table>`;
 }

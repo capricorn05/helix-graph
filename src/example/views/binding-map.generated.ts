@@ -41,6 +41,34 @@ export const appBindingMap: BindingMap = {
       chunk: "/client/actions.js",
       handlerExport: "onExternalDetailOpen",
     },
+    "external-media-detail-close": {
+      id: "external-media-detail-close",
+      event: "click",
+      actionId: "external-media-detail",
+      chunk: "/client/actions.js",
+      handlerExport: "onExternalMediaDetailClose",
+    },
+    "external-media-detail-open": {
+      id: "external-media-detail-open",
+      event: "click",
+      actionId: "external-media-detail",
+      chunk: "/client/actions.js",
+      handlerExport: "onExternalMediaDetailOpen",
+    },
+    "external-media-page-next": {
+      id: "external-media-page-next",
+      event: "click",
+      actionId: "external-media-page",
+      chunk: "/client/actions.js",
+      handlerExport: "onExternalMediaPageNext",
+    },
+    "external-media-page-prev": {
+      id: "external-media-page-prev",
+      event: "click",
+      actionId: "external-media-page",
+      chunk: "/client/actions.js",
+      handlerExport: "onExternalMediaPagePrev",
+    },
     "external-page-next": {
       id: "external-page-next",
       event: "click",
@@ -106,8 +134,16 @@ export const appBindingMap: BindingMap = {
     }
   },
   lists: {
+    "external-media-products-body": {
+      listId: "external-media-products-body",
+      keyAttr: "data-hx-key",
+    },
     "external-products-body": {
       listId: "external-products-body",
+      keyAttr: "data-hx-key",
+    },
+    "host-listings-grid": {
+      listId: "host-listings-grid",
       keyAttr: "data-hx-key",
     },
     "posts-body": {

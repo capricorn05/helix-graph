@@ -18,6 +18,8 @@ import {
   handlePosts,
   handlePostsNew,
   handleExternalData,
+  handleExternalDataRich,
+  handleHostListings,
   handleUsersPanelComponent,
   handleAppCoreComponent,
 } from "../handlers/pages.handler.js";
@@ -30,6 +32,8 @@ import {
   handleCreatePost,
   handleUserStats,
   handleExternalDataApi,
+  handleExternalDataRichApi,
+  handleHostListingsApi,
   handleExternalDataDetailApi,
   handlePostsApi,
   handleDeleteUser,
@@ -70,6 +74,16 @@ const externalDataRoute = defineRoute(
   "/external-data",
   handleExternalData,
 );
+const externalDataRichRoute = defineRoute(
+  "GET",
+  "/external-data-rich",
+  handleExternalDataRich,
+);
+const hostListingsRoute = defineRoute(
+  "GET",
+  "/host-listings",
+  handleHostListings,
+);
 const usersPanelComponentRoute = defineRoute(
   "GET",
   "/components/users-panel",
@@ -93,6 +107,16 @@ const apiExternalDataRoute = defineRoute(
   "GET",
   "/api/external-data",
   handleExternalDataApi,
+);
+const apiExternalDataRichRoute = defineRoute(
+  "GET",
+  "/api/external-data-rich",
+  handleExternalDataRichApi,
+);
+const apiHostListingsRoute = defineRoute(
+  "GET",
+  "/api/host-listings",
+  handleHostListingsApi,
 );
 const apiExternalDataDetailRoute = defineRoute(
   "GET",
@@ -127,6 +151,7 @@ const healthRoute = defineRoute("GET", "/health", (ctx) =>
   sendJson(ctx, 200, { ok: true }),
 );
 const staticClientRoute = defineRoute("GET", "/client/*", handleStaticFile);
+const staticSharedRoute = defineRoute("GET", "/shared/*", handleStaticFile);
 const staticHelixRoute = defineRoute("GET", "/helix/*", handleStaticFile);
 
 // ---------------------------------------------------------------------------
@@ -146,6 +171,8 @@ export const router = createRouter([
   interactionsRoute,
   externalGridRoute,
   externalDataRoute,
+  externalDataRichRoute,
+  hostListingsRoute,
   postsNewRoute,
   postsRoute,
   usersPanelComponentRoute,
@@ -155,6 +182,8 @@ export const router = createRouter([
   apiUserDetailRoute,
   apiStatsRoute,
   apiExternalDataRoute,
+  apiExternalDataRichRoute,
+  apiHostListingsRoute,
   apiExternalDataDetailRoute,
   apiPostsRoute,
   createUserRoute,
@@ -165,5 +194,6 @@ export const router = createRouter([
   // Utility
   healthRoute,
   staticClientRoute,
+  staticSharedRoute,
   staticHelixRoute,
 ]);

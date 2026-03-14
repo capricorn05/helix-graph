@@ -33,7 +33,7 @@ export const helixShadcnTheme: HelixThemeDefinition = {
     border: "214.3 31.8% 91.4%",
     input: "214.3 31.8% 91.4%",
     ring: "221.2 83.2% 53.3%",
-    radius: "0.5rem"
+    radius: "0.5rem",
   },
   dark: {
     background: "222.2 84% 4.9%",
@@ -55,11 +55,14 @@ export const helixShadcnTheme: HelixThemeDefinition = {
     border: "217.2 32.6% 17.5%",
     input: "217.2 32.6% 17.5%",
     ring: "224.3 76.3% 48%",
-    radius: "0.5rem"
-  }
+    radius: "0.5rem",
+  },
 };
 
-function renderTokenDeclarations(tokens: ThemeTokenMap, indent: string): string {
+function renderTokenDeclarations(
+  tokens: ThemeTokenMap,
+  indent: string,
+): string {
   return Object.entries(tokens)
     .map(([name, value]) => `${indent}--${name}: ${value};`)
     .join("\n");
@@ -67,7 +70,7 @@ function renderTokenDeclarations(tokens: ThemeTokenMap, indent: string): string 
 
 export function renderThemeTokensCss(
   theme: HelixThemeDefinition = helixShadcnTheme,
-  options: Pick<RenderThemeOptions, "includeColorScheme"> = {}
+  options: Pick<RenderThemeOptions, "includeColorScheme"> = {},
 ): string {
   const includeColorScheme = options.includeColorScheme ?? true;
   const lightColorScheme = includeColorScheme ? "\n  color-scheme: light;" : "";
@@ -75,7 +78,9 @@ export function renderThemeTokensCss(
   let css = `:root {${lightColorScheme}\n${renderTokenDeclarations(theme.light, "  ")}\n}`;
 
   if (theme.dark) {
-    const darkColorScheme = includeColorScheme ? "\n    color-scheme: dark;" : "";
+    const darkColorScheme = includeColorScheme
+      ? "\n    color-scheme: dark;"
+      : "";
     css += `\n\n@media (prefers-color-scheme: dark) {\n  :root {${darkColorScheme}\n${renderTokenDeclarations(theme.dark, "    ")}\n  }\n}`;
   }
 
@@ -158,7 +163,37 @@ export function renderHeadlessUiCss(): string {
 .hx-table td {
   border-bottom: 1px solid hsl(var(--border));
   text-align: left;
+}
+
+.hx-table__filter-row th {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-weight: 400;
+  padding-top: 0.35rem;
+  padding-bottom: 0.45rem;
+}
+
+.hx-table__filter-control {
+  width: 100%;
+  min-width: 0;
   padding: 0.55rem;
+}
+
+.hx-table td[data-hx-nowrap="true"] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hx-table td[data-hx-nowrap="true"][contenteditable="true"]:focus {
+  overflow-x: auto;
+  overflow-y: hidden;
+  text-overflow: clip;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.hx-table td[data-hx-nowrap="true"][contenteditable="true"]:focus::-webkit-scrollbar {
+  display: none;
 }
 
 .hx-table th {
@@ -170,11 +205,13 @@ export function renderHeadlessUiCss(): string {
 
 export function renderThemeHeadContent(
   theme: HelixThemeDefinition = helixShadcnTheme,
-  options: RenderThemeOptions = {}
+  options: RenderThemeOptions = {},
 ): string {
   const cssChunks = [
-    renderThemeTokensCss(theme, { includeColorScheme: options.includeColorScheme }),
-    options.includeHeadlessUi === false ? "" : renderHeadlessUiCss()
+    renderThemeTokensCss(theme, {
+      includeColorScheme: options.includeColorScheme,
+    }),
+    options.includeHeadlessUi === false ? "" : renderHeadlessUiCss(),
   ].filter((chunk) => chunk.length > 0);
 
   return `<style>\n${cssChunks.join("\n\n")}\n</style>`;

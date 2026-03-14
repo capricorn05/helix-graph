@@ -110,7 +110,7 @@ Delivered: runtime state now uses live cells/derived state not just for users pa
 
 ## Medium-term (the actual moat)
 
-Status update (2026-03-11): 🚧 Item 7 MVP delivered, ✅ Item 8 completed.
+Status update (2026-03-13): 🚧 Item 7 MVP delivered, ✅ Item 8 completed, ✅ Item 9 completed.
 
 ### 7. View compiler – TSX to patches 🚧 MVP delivered (2026-03-11)
 
@@ -160,6 +160,40 @@ and wired into `npm run verify`, plus regression tests in `src/tests/resource.te
 
 ---
 
+### 9. Document the recommended page pattern + end-to-end flow ✅ Completed (2026-03-13)
+
+The project had strong implementation patterns but lacked a concise, repo-specific
+"how to build a page end-to-end" guide.
+
+Delivered:
+
+- Added recommended pattern docs (compiled TSX shell + server wrapper + optional hybrid JSON updates)
+  in `README.md`.
+- Added practical architecture guidance in `ARCHITECTURE_ROADMAP.md`.
+- Improved formatting/readability across `Tech Specs.md` and kept section content intact.
+- Added dedicated end-to-end implementation guide in `END_TO_END_FRAMEWORK_GUIDE.md`
+  (resource → action → route → view → binding → client flow + troubleshooting matrix).
+- Migrated Host Listings to the compiled-shell pattern (`views-tsx` + generated compiled view + wrapper)
+  while keeping hybrid JSON paging behavior.
+
+---
+
+### 10. Add high-density external table perf scenario ✅ Completed (2026-03-14)
+
+Delivered:
+
+- Added `/external-data-rich` page with the same external products table flow plus row-level media,
+  richer conditional formatting, and additional per-cell visual states.
+- Added dedicated API and client binding path (`/api/external-data-rich`) to keep paging updates
+  incremental under heavier row rendering load.
+
+Follow-up:
+
+- Add a repeatable benchmark case comparing patch/update latency between `/external-data` and
+  `/external-data-rich` and capture results in `src/bench/index.ts` output.
+
+---
+
 ## Priority order (shortest path to a defensible foundation)
 
 ```
@@ -171,6 +205,8 @@ and wired into `npm run verify`, plus regression tests in `src/tests/resource.te
 6. ✅ Client state as live reactive cells
 7. 🚧 View compiler (TSX → patches) — MVP delivered
 8. ✅ Enforce `where` placement
+9. ✅ Document recommended page pattern + end-to-end flow
+10. ✅ Add high-density external table perf scenario
 ```
 
 Steps 1–6 are all tractable without a compiler and together turn the prototype into something

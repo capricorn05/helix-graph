@@ -14,6 +14,7 @@ import {
 } from "./runtime.js";
 import "./interactions.js";
 import "./external-grid.js";
+import "./host-listings.js";
 
 function defineCellBackedProperty<T>(
   target: object,
