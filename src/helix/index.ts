@@ -22,3 +22,10 @@ export * from "./resume.js";
 export * from "./node-http.js";
 export * from "./placement.js";
 export * from "./view-compiler.js";
+export * from "./tsx-view-compiler.js";
+export {
+	parseTypeScriptSourceFile,
+	collectBindingsAndListsFromViewSource,
+	collectClientHandlersFromSource,
+	type BindingRecord,
+} from "./binding-map-compiler.js";

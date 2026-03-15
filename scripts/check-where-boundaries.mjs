@@ -5,6 +5,7 @@ import ts from "typescript";
 
 const SOURCE_EXTENSIONS = [".ts", ".tsx"];
 const SERVER_ONLY_WHERE = new Set(["server", "edge"]);
+const BROWSER_EXAMPLE_SEGMENTS = new Set(["client", "shared"]);
 
 function hasExportModifier(node) {
   const modifiers = ts.canHaveModifiers(node)
@@ -76,12 +77,45 @@ function resolveModulePath(fromFilePath, specifier) {
   return null;
 }
 
-function resolveWhereFromPolicyArg(arg) {
-  if (!arg || !ts.isObjectLiteralExpression(arg)) {
+function isBrowserSourceFile(filePath) {
+  if (!SOURCE_EXTENSIONS.some((ext) => filePath.endsWith(ext))) {
+    return false;
+  }
+
+  const parts = filePath.split(path.sep);
+  const exampleIndex = parts.lastIndexOf("example");
+  if (exampleIndex === -1) {
+    return false;
+  }
+
+  const segment = parts[exampleIndex + 1];
+  return BROWSER_EXAMPLE_SEGMENTS.has(segment);
+}
+
+function unwrapExpression(expression) {
+  if (!expression) {
     return null;
   }
 
-  for (const property of arg.properties) {
+  let current = expression;
+  while (
+    ts.isParenthesizedExpression(current) ||
+    ts.isAsExpression(current) ||
+    (typeof ts.isSatisfiesExpression === "function" &&
+      ts.isSatisfiesExpression(current))
+  ) {
+    current = current.expression;
+  }
+
+  return current;
+}
+
+function resolveWhereFromObjectLiteral(objectLiteral) {
+  if (!objectLiteral || !ts.isObjectLiteralExpression(objectLiteral)) {
+    return null;
+  }
+
+  for (const property of objectLiteral.properties) {
     if (!ts.isPropertyAssignment(property)) {
       continue;
     }
@@ -93,6 +127,54 @@ function resolveWhereFromPolicyArg(arg) {
   }
 
   return null;
+}
+
+function collectLocalPolicyObjectLiterals(sourceFile) {
+  const result = new Map();
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isVariableStatement(statement)) {
+      continue;
+    }
+
+    for (const declaration of statement.declarationList.declarations) {
+      if (!ts.isIdentifier(declaration.name) || !declaration.initializer) {
+        continue;
+      }
+
+      const initializer = unwrapExpression(declaration.initializer);
+      if (!initializer || !ts.isObjectLiteralExpression(initializer)) {
+        continue;
+      }
+
+      result.set(declaration.name.text, initializer);
+    }
+  }
+
+  return result;
+}
+
+function resolveWhereFromPolicyArg(arg, localPolicies) {
+  if (!arg || !ts.isObjectLiteralExpression(arg)) {
+    const normalizedArg = unwrapExpression(arg);
+    if (!normalizedArg) {
+      return null;
+    }
+
+    if (ts.isIdentifier(normalizedArg)) {
+      return resolveWhereFromObjectLiteral(
+        localPolicies.get(normalizedArg.text),
+      );
+    }
+
+    if (!ts.isObjectLiteralExpression(normalizedArg)) {
+      return null;
+    }
+
+    return resolveWhereFromObjectLiteral(normalizedArg);
+  }
+
+  return resolveWhereFromObjectLiteral(arg);
 }
 
 function collectFactoryAliases(sourceFile) {
@@ -143,6 +225,7 @@ function collectFactoryAliases(sourceFile) {
 
 function collectModuleInfo(filePath, sourceFile) {
   const { resourceAliases, actionAliases } = collectFactoryAliases(sourceFile);
+  const localPolicies = collectLocalPolicyObjectLiterals(sourceFile);
   const localServerOnly = new Set();
   const exportedServerOnly = new Set();
   const reExports = [];
@@ -170,10 +253,12 @@ function collectModuleInfo(filePath, sourceFile) {
         if (resourceAliases.has(callee)) {
           where = resolveWhereFromPolicyArg(
             declaration.initializer.arguments[3],
+            localPolicies,
           );
         } else if (actionAliases.has(callee)) {
           where = resolveWhereFromPolicyArg(
             declaration.initializer.arguments[2],
+            localPolicies,
           );
         }
 
@@ -186,6 +271,48 @@ function collectModuleInfo(filePath, sourceFile) {
           exportedServerOnly.add(declaration.name.text);
         }
       }
+    }
+
+    if (ts.isExportAssignment(statement)) {
+      const exportedExpression = unwrapExpression(statement.expression);
+      if (!exportedExpression) {
+        continue;
+      }
+
+      if (ts.isIdentifier(exportedExpression)) {
+        if (localServerOnly.has(exportedExpression.text)) {
+          exportedServerOnly.add("default");
+        }
+        continue;
+      }
+
+      if (
+        !ts.isCallExpression(exportedExpression) ||
+        !ts.isIdentifier(exportedExpression.expression)
+      ) {
+        continue;
+      }
+
+      const callee = exportedExpression.expression.text;
+      let where = null;
+
+      if (resourceAliases.has(callee)) {
+        where = resolveWhereFromPolicyArg(
+          exportedExpression.arguments[3],
+          localPolicies,
+        );
+      } else if (actionAliases.has(callee)) {
+        where = resolveWhereFromPolicyArg(
+          exportedExpression.arguments[2],
+          localPolicies,
+        );
+      }
+
+      if (where && SERVER_ONLY_WHERE.has(where)) {
+        exportedServerOnly.add("default");
+      }
+
+      continue;
     }
 
     if (ts.isExportDeclaration(statement) && statement.moduleSpecifier) {
@@ -296,87 +423,175 @@ function resolveExportedServerOnly(
   return resolved;
 }
 
-function collectClientImportViolations(
+function collectBrowserImportViolations(
   workspaceRoot,
-  clientFilePath,
+  browserFilePath,
   sourceFile,
   resolvedServerOnlyByPath,
 ) {
   const violations = [];
+  const relativePath = path.relative(workspaceRoot, browserFilePath);
 
-  for (const statement of sourceFile.statements) {
-    if (!ts.isImportDeclaration(statement)) {
-      continue;
-    }
-
-    const specifier = getStringLiteralText(statement.moduleSpecifier);
-    if (!specifier) {
-      continue;
-    }
-
-    const targetPath = resolveModulePath(clientFilePath, specifier);
+  function getServerOnlyExports(specifier) {
+    const targetPath = resolveModulePath(browserFilePath, specifier);
     if (!targetPath) {
-      continue;
+      return null;
     }
 
     const serverOnlyExports = resolvedServerOnlyByPath.get(targetPath);
     if (!serverOnlyExports || serverOnlyExports.size === 0) {
-      continue;
+      return null;
     }
 
-    const importClause = statement.importClause;
+    return serverOnlyExports;
+  }
+
+  function addViolation(node, detail) {
     const location = sourceFile.getLineAndCharacterOfPosition(
-      statement.moduleSpecifier.getStart(sourceFile),
+      node.getStart(sourceFile),
     );
 
-    const relativePath = path.relative(workspaceRoot, clientFilePath);
+    violations.push({
+      filePath: relativePath,
+      line: location.line + 1,
+      column: location.character + 1,
+      detail,
+    });
+  }
 
-    if (!importClause) {
-      continue;
-    }
+  for (const statement of sourceFile.statements) {
+    if (ts.isImportDeclaration(statement)) {
+      const specifier = getStringLiteralText(statement.moduleSpecifier);
+      if (!specifier || statement.importClause?.isTypeOnly) {
+        continue;
+      }
 
-    if (importClause.name) {
-      violations.push({
-        filePath: relativePath,
-        line: location.line + 1,
-        column: location.character + 1,
-        detail: `default import from ${specifier}`,
-      });
+      const serverOnlyExports = getServerOnlyExports(specifier);
+      if (!serverOnlyExports) {
+        continue;
+      }
+
+      const importClause = statement.importClause;
+      if (!importClause) {
+        addViolation(
+          statement.moduleSpecifier,
+          `side-effect import from ${specifier}`,
+        );
+        continue;
+      }
+
+      if (importClause.name && serverOnlyExports.has("default")) {
+        addViolation(
+          statement.moduleSpecifier,
+          `default import from ${specifier}`,
+        );
+      }
+
+      if (
+        importClause.namedBindings &&
+        ts.isNamespaceImport(importClause.namedBindings)
+      ) {
+        addViolation(
+          statement.moduleSpecifier,
+          `namespace import from ${specifier}`,
+        );
+        continue;
+      }
+
+      if (
+        importClause.namedBindings &&
+        ts.isNamedImports(importClause.namedBindings)
+      ) {
+        for (const element of importClause.namedBindings.elements) {
+          const importedName = (element.propertyName ?? element.name).text;
+          if (!serverOnlyExports.has(importedName)) {
+            continue;
+          }
+
+          addViolation(
+            statement.moduleSpecifier,
+            `import ${importedName} from ${specifier}`,
+          );
+        }
+      }
+
       continue;
     }
 
     if (
-      importClause.namedBindings &&
-      ts.isNamespaceImport(importClause.namedBindings)
+      ts.isExportDeclaration(statement) &&
+      statement.moduleSpecifier &&
+      !statement.isTypeOnly
     ) {
-      violations.push({
-        filePath: relativePath,
-        line: location.line + 1,
-        column: location.character + 1,
-        detail: `namespace import from ${specifier}`,
-      });
-      continue;
-    }
+      const specifier = getStringLiteralText(statement.moduleSpecifier);
+      if (!specifier) {
+        continue;
+      }
 
-    if (
-      importClause.namedBindings &&
-      ts.isNamedImports(importClause.namedBindings)
-    ) {
-      for (const element of importClause.namedBindings.elements) {
+      const serverOnlyExports = getServerOnlyExports(specifier);
+      if (!serverOnlyExports) {
+        continue;
+      }
+
+      if (!statement.exportClause) {
+        addViolation(statement.moduleSpecifier, `export * from ${specifier}`);
+        continue;
+      }
+
+      if (!ts.isNamedExports(statement.exportClause)) {
+        addViolation(
+          statement.moduleSpecifier,
+          `namespace re-export from ${specifier}`,
+        );
+        continue;
+      }
+
+      for (const element of statement.exportClause.elements) {
         const importedName = (element.propertyName ?? element.name).text;
         if (!serverOnlyExports.has(importedName)) {
           continue;
         }
 
-        violations.push({
-          filePath: relativePath,
-          line: location.line + 1,
-          column: location.character + 1,
-          detail: `import ${importedName} from ${specifier}`,
-        });
+        addViolation(
+          statement.moduleSpecifier,
+          `re-export ${importedName} from ${specifier}`,
+        );
       }
     }
   }
+
+  function visit(node) {
+    if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      node.arguments.length === 1 &&
+      ts.isStringLiteral(node.arguments[0])
+    ) {
+      const specifier = node.arguments[0].text;
+      const serverOnlyExports = getServerOnlyExports(specifier);
+      if (serverOnlyExports) {
+        addViolation(node.arguments[0], `dynamic import from ${specifier}`);
+      }
+    }
+
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === "require" &&
+      node.arguments.length === 1 &&
+      ts.isStringLiteral(node.arguments[0])
+    ) {
+      const specifier = node.arguments[0].text;
+      const serverOnlyExports = getServerOnlyExports(specifier);
+      if (serverOnlyExports) {
+        addViolation(node.arguments[0], `require from ${specifier}`);
+      }
+    }
+
+    ts.forEachChild(node, visit);
+  }
+
+  visit(sourceFile);
 
   return violations;
 }
@@ -445,22 +660,21 @@ async function main() {
     );
   }
 
-  const clientFilePaths = sourceFilePaths.filter((filePath) => {
-    const parts = filePath.split(path.sep);
-    return parts.includes("client");
-  });
+  const browserFilePaths = sourceFilePaths.filter((filePath) =>
+    isBrowserSourceFile(filePath),
+  );
 
   const violations = [];
-  for (const clientFilePath of clientFilePaths) {
-    const sourceFile = parsedSourceByPath.get(clientFilePath);
+  for (const browserFilePath of browserFilePaths) {
+    const sourceFile = parsedSourceByPath.get(browserFilePath);
     if (!sourceFile) {
       continue;
     }
 
     violations.push(
-      ...collectClientImportViolations(
+      ...collectBrowserImportViolations(
         workspaceRoot,
-        clientFilePath,
+        browserFilePath,
         sourceFile,
         resolvedServerOnlyByPath,
       ),
@@ -476,12 +690,12 @@ async function main() {
       .join("\n");
 
     throw new Error(
-      `Client files import server/edge-only resources or actions.\n${lines}`,
+      `Browser files import or re-export server/edge-only resources or actions.\n${lines}`,
     );
   }
 
   process.stdout.write(
-    `Where boundary guard passed (${clientFilePaths.length} client files scanned).\n`,
+    `Where boundary guard passed (${browserFilePaths.length} browser files scanned).\n`,
   );
 }
 

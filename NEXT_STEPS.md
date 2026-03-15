@@ -110,9 +110,9 @@ Delivered: runtime state now uses live cells/derived state not just for users pa
 
 ## Medium-term (the actual moat)
 
-Status update (2026-03-13): 🚧 Item 7 MVP delivered, ✅ Item 8 completed, ✅ Item 9 completed.
+Status update (2026-03-14): ✅ Item 7 completed, ✅ Item 8 completed, ✅ Item 9 completed.
 
-### 7. View compiler – TSX to patches 🚧 MVP delivered (2026-03-11)
+### 7. View compiler – TSX to patches ✅ Completed (2026-03-14)
 
 The `view()` primitive is currently just a typed string function. The spec promises compile-time
 TSX → DOM fragments + patch tables with no VDOM diff.
@@ -127,15 +127,30 @@ TSX → DOM fragments + patch tables with no VDOM diff.
 This is months of work but it is the feature that makes ergonomics viable at scale and
 differentiates Helix from "just another SSR framework with some HTMX-style tricks".
 
-Delivered (MVP): added a TSX compiler path that generates compiled view artifacts with a static
-template shell, dynamic patch descriptors, and inferred binding maps. Added
-`src/example/scripts/generate-compiled-views.ts`, `src/helix/view-compiler.ts`, TSX source views
-in `src/example/views-tsx/*.view.tsx`, and generated compiled page artifacts in
-`src/example/views/compiled/*.compiled.ts` (currently 12 files checked in verify).
-Integrated compiled rendering across all admin pages (Users, Dashboard, Reports, External Data,
-Posts, Search, Settings, About), plus user detail/edit route pages, with verify-time drift
-checks (`npm run gen:views` and
-`node dist/example/scripts/generate-compiled-views.js --check`).
+Delivered:
+
+- Extracted reusable TSX compile core into `src/helix/tsx-view-compiler.ts` and kept
+  `src/example/scripts/generate-compiled-views.ts` as a thin orchestration wrapper.
+- Upgraded compiler guardrails in `src/helix/tsx-view-compiler.ts` with
+  location-aware errors and strict rejection of unsupported patterns (duplicate `data-hx-id`,
+  dynamic `data-hx-bind`/`data-hx-list`, inline `on*` handlers, dynamic style objects, non-renderable
+  JSX child expressions).
+- Added list binding extraction from `data-hx-list` into generated compiled binding maps, so compiled
+  artifacts now emit both `events` and `lists` metadata.
+- Hardened generation workflow: `check` mode now fails on stale compiled artifacts, and generation mode
+  prunes stale outputs automatically.
+- Hardened runtime compiled rendering in `src/helix/view-compiler.ts` with token validation,
+  prepared-token caching, and one-pass replacement.
+- Added dedicated regression tests in `src/tests/view-compiler.test.ts` to lock guardrails and
+  compiled-render behavior.
+- Extracted reusable binding-map analysis core into `src/helix/binding-map-compiler.ts` and kept
+  `src/example/scripts/generate-binding-map.ts` as a thin wrapper for app-specific handler/action
+  overrides and output wiring.
+
+Remaining follow-up candidates for the same extraction treatment:
+
+- `scripts/check-client-imports.mjs` + `scripts/check-where-boundaries.mjs`: extract shared module
+  graph resolution + browser-boundary analysis helpers into a framework build-guard module.
 
 ---
 
@@ -157,6 +172,12 @@ policy `where` and active runtime placement (`src/helix/placement.ts`, `src/heli
 `src/helix/action.ts`). Added static boundary checks via `scripts/check-where-boundaries.mjs`
 and wired into `npm run verify`, plus regression tests in `src/tests/resource.test.ts` and
 `src/tests/action.test.ts`.
+
+2026-03-14 hardening:
+
+- Expanded static where-boundary checks to all browser-delivered example modules (`client` + `shared`).
+- Added violation coverage for re-exports, dynamic `import()`, and `require()` paths.
+- Improved policy inference when `where` is declared via local policy constants and default exports.
 
 ---
 
@@ -203,7 +224,7 @@ Follow-up:
 4. ✅ Code-generate the BindingMap
 5. ✅ Wire invalidation through graph edges
 6. ✅ Client state as live reactive cells
-7. 🚧 View compiler (TSX → patches) — MVP delivered
+7. ✅ View compiler (TSX → patches)
 8. ✅ Enforce `where` placement
 9. ✅ Document recommended page pattern + end-to-end flow
 10. ✅ Add high-density external table perf scenario

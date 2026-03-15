@@ -190,12 +190,16 @@ Today:
 src/helix/              — framework core (ssr, router, resource, actions, etc.)
 src/example/
   ├─ views-tsx/        — hand-written TSX designs
+  ├─ scripts/          — app-level wrappers for codegen output policy
   ├─ views/            — server wrappers (wire compiled + SSR)
   │  └─ compiled/      — auto-generated static templates
   ├─ client/           — all client handlers (bindings + actions)
   ├─ shared/           — browser-safe helpers reusable by SSR wrappers + client modules
   └─ handlers/         — SSR page handlers + API endpoints
 ```
+
+`src/helix/tsx-view-compiler.ts` and `src/helix/binding-map-compiler.ts` now hold reusable compile/
+scan cores; example scripts focus on repo-specific output paths, overrides, and binding conventions.
 
 Browser-delivered modules should stay inside `src/example/client`, `src/example/shared`, or `src/helix` so emitted ESM specifiers resolve to served URLs at runtime.
 

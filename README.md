@@ -78,6 +78,8 @@ For the full walkthrough (including troubleshooting), see `END_TO_END_FRAMEWORK_
 - `src/helix/*` — framework primitives/runtime/SSR helpers
 - `src/helix/resume.ts` — reusable resumability bootstrap + delegated event activation
 - `src/helix/node-http.ts` — Node adapter helpers (`sendJson`, `readJsonBody`, static file serving)
+- `src/helix/tsx-view-compiler.ts` — framework TSX compile core (AST to template/patch descriptors)
+- `src/helix/binding-map-compiler.ts` — framework AST scan helpers for binding/list and client-handler extraction
 - `src/helix/html.ts` — generic HTML escaping + document shell start/end helpers
 - `src/helix/theme.ts` — first-class theme tokens + headless UI base styles
 - `src/helix/ui.ts` — framework-native headless HTML helpers (`uiButton`, `uiCard`, `uiInput`, `uiSelect`, `uiTable`)
@@ -87,6 +89,8 @@ For the full walkthrough (including troubleshooting), see `END_TO_END_FRAMEWORK_
 - `src/example/client/actions.ts` — lazy-loaded handlers (paging/sort/form)
 - `src/example/shared/*` — browser-safe modules shared by SSR wrappers and client chunks
 - `src/example/domain.ts` — in-memory users domain model
+- `src/example/scripts/generate-compiled-views.ts` — example-level wrapper that emits compiled modules using framework compiler core
+- `src/example/scripts/generate-binding-map.ts` — example-level wrapper that emits binding maps using framework binding compiler core
 - `src/example/utils/query.ts` — URL/query parsing for users paging/sorting
 - `src/example/utils/layout.ts` — app chrome + app-level layout CSS using Helix theme API
 
@@ -238,6 +242,6 @@ const createUser = action(
 
 ## Notes
 
-- TSX compiled-view support is currently MVP-level and intentionally constrained.
-- The architecture is structured so TSX compilation, deeper graph extraction, and chunk planning can be layered in incrementally.
+- TSX compiled-view support now includes strict compile-time guardrails and stale-artifact drift detection; unsupported patterns fail fast with file/line diagnostics.
+- The TSX subset remains intentionally constrained while deeper graph extraction and chunk planning continue to layer in incrementally.
 - React/shadcn component islands are an optional adapter path, not a core Helix requirement.

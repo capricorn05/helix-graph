@@ -15,7 +15,9 @@ const compiledBindingMap: BindingMap = {
       preventDefault: true,
     }
   },
-  lists: {},
+  lists: {
+
+  },
 };
 
 export const usersPageContentCompiledArtifact: CompiledViewArtifact<any> = {

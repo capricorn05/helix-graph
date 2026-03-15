@@ -8,7 +8,9 @@ const compiledBindingMap: BindingMap = {
   events: {
 
   },
-  lists: {},
+  lists: {
+
+  },
 };
 
 export const aboutCompiledArtifact: CompiledViewArtifact<any> = {

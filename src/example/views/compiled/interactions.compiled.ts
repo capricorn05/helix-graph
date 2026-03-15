@@ -8,7 +8,12 @@ const compiledBindingMap: BindingMap = {
   events: {
 
   },
-  lists: {},
+  lists: {
+    "trial-dnd-list": {
+      listId: "trial-dnd-list",
+      keyAttr: "data-hx-key",
+    }
+  },
 };
 
 export const interactionsCompiledArtifact: CompiledViewArtifact<any> = {

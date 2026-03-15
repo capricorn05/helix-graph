@@ -8,7 +8,12 @@ const compiledBindingMap: BindingMap = {
   events: {
 
   },
-  lists: {},
+  lists: {
+    "host-listings-grid": {
+      listId: "host-listings-grid",
+      keyAttr: "data-hx-key",
+    }
+  },
 };
 
 export const hostListingsCompiledArtifact: CompiledViewArtifact<any> = {

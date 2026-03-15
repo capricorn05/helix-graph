@@ -1613,8 +1613,7 @@ function applyExternalMediaProductsPage(
       op: "setAttr",
       targetId: "external-media-next-btn",
       name: "disabled",
-      value:
-        productsPage.page >= productsPage.totalPages ? "disabled" : null,
+      value: productsPage.page >= productsPage.totalPages ? "disabled" : null,
     },
     {
       op: "setAttr",
@@ -1666,7 +1665,8 @@ async function refreshExternalMediaProducts(
     );
   }
 
-  const productsPage = (await response.json()) as ExternalMediaProductsApiResponse;
+  const productsPage =
+    (await response.json()) as ExternalMediaProductsApiResponse;
   applyExternalMediaProductsPage(runtime, productsPage, trigger, lane);
 
   window.history.replaceState(

@@ -60,7 +60,9 @@ function getExternalMediaRatingBand(rating: number): ExternalMediaRatingBand {
   return "mid";
 }
 
-function formatExternalMediaPriceBandLabel(band: ExternalMediaPriceBand): string {
+function formatExternalMediaPriceBandLabel(
+  band: ExternalMediaPriceBand,
+): string {
   switch (band) {
     case "budget":
       return "Budget";
@@ -71,14 +73,16 @@ function formatExternalMediaPriceBandLabel(band: ExternalMediaPriceBand): string
   }
 }
 
-function formatExternalMediaStockBandLabel(band: ExternalMediaStockBand): string {
+function formatExternalMediaStockBandLabel(
+  band: ExternalMediaStockBand,
+): string {
   switch (band) {
     case "empty":
-      return "Out"
+      return "Out";
     case "low":
-      return "Low"
+      return "Low";
     default:
-      return "Ready"
+      return "Ready";
   }
 }
 
@@ -186,7 +190,9 @@ const externalProductRichColumns: UIDataTableColumnDef<ExternalProductDetail>[] 
       id: "id",
       header: "ID",
       accessorKey: "id",
-      cellAttrs: ({ row }) => ({ "data-hx-id": `external-media-row-${row.id}-id` }),
+      cellAttrs: ({ row }) => ({
+        "data-hx-id": `external-media-row-${row.id}-id`,
+      }),
     },
     {
       id: "preview",
@@ -201,13 +207,17 @@ const externalProductRichColumns: UIDataTableColumnDef<ExternalProductDetail>[] 
       id: "title",
       header: "Title",
       cell: ({ row }) => renderExternalMediaTitleCell(row),
-      cellAttrs: ({ row }) => ({ "data-hx-id": `external-media-row-${row.id}-title-cell` }),
+      cellAttrs: ({ row }) => ({
+        "data-hx-id": `external-media-row-${row.id}-title-cell`,
+      }),
     },
     {
       id: "brand",
       header: "Brand",
       accessorKey: "brand",
-      cellAttrs: ({ row }) => ({ "data-hx-id": `external-media-row-${row.id}-brand` }),
+      cellAttrs: ({ row }) => ({
+        "data-hx-id": `external-media-row-${row.id}-brand`,
+      }),
     },
     {
       id: "category",
@@ -221,19 +231,25 @@ const externalProductRichColumns: UIDataTableColumnDef<ExternalProductDetail>[] 
       id: "price",
       header: "Price",
       cell: ({ row }) => renderExternalMediaPriceCell(row),
-      cellAttrs: ({ row }) => ({ "data-hx-id": `external-media-row-${row.id}-price` }),
+      cellAttrs: ({ row }) => ({
+        "data-hx-id": `external-media-row-${row.id}-price`,
+      }),
     },
     {
       id: "stock",
       header: "Stock",
       cell: ({ row }) => renderExternalMediaStockCell(row),
-      cellAttrs: ({ row }) => ({ "data-hx-id": `external-media-row-${row.id}-stock` }),
+      cellAttrs: ({ row }) => ({
+        "data-hx-id": `external-media-row-${row.id}-stock`,
+      }),
     },
     {
       id: "rating",
       header: "Rating",
       cell: ({ row }) => renderExternalMediaRatingCell(row),
-      cellAttrs: ({ row }) => ({ "data-hx-id": `external-media-row-${row.id}-rating` }),
+      cellAttrs: ({ row }) => ({
+        "data-hx-id": `external-media-row-${row.id}-rating`,
+      }),
     },
     {
       id: "actions",
@@ -248,7 +264,9 @@ const externalProductRichColumns: UIDataTableColumnDef<ExternalProductDetail>[] 
             "data-row-id": row.id,
           },
         }),
-      cellAttrs: ({ row }) => ({ "data-hx-id": `external-media-row-${row.id}-actions` }),
+      cellAttrs: ({ row }) => ({
+        "data-hx-id": `external-media-row-${row.id}-actions`,
+      }),
     },
   ];
 
