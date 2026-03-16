@@ -3,8 +3,8 @@ import test from "node:test";
 import {
   collectBindingsAndListsFromViewSource,
   collectClientHandlersFromSource,
-  parseTypeScriptSourceFile,
 } from "../helix/binding-map-compiler.js";
+import { parseTypeScriptSourceFile } from "../helix/compiler-utils.js";
 
 test("collectBindingsAndListsFromViewSource finds bindings/lists across supported patterns", () => {
   const source = `

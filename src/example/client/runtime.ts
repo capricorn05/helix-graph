@@ -14,7 +14,7 @@ import {
 
 const DEFAULT_USERS_PAGE_SIZE = 6;
 const DEFAULT_POSTS_PAGE_SIZE = 10;
-const DEFAULT_EXTERNAL_PAGE_SIZE = 30;
+const DEFAULT_EXTERNAL_PAGE_SIZE = 100;
 
 interface PagerClientState {
   page: number;

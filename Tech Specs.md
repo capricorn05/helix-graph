@@ -544,6 +544,9 @@ Create a `.view.tsx` file with static structure and `hx-slot` placeholders for d
 ### Step 2 — Generate compiled artifacts
 
 Run `npm run gen:views` to emit/refresh `*.compiled.ts` output.
+The example wrapper `src/example/scripts/generate-compiled-views.ts` delegates orchestration to
+the framework API in `src/helix/compiled-view-codegen.ts` (`runCompiledViewCodegen(...)`) so scan/
+compile/emit/check/stale-prune behavior stays shared and app scripts remain path/config focused.
 
 ### Step 3 — Implement server wrapper
 

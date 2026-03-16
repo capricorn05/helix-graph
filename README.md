@@ -80,6 +80,13 @@ For the full walkthrough (including troubleshooting), see `END_TO_END_FRAMEWORK_
 - `src/helix/node-http.ts` — Node adapter helpers (`sendJson`, `readJsonBody`, static file serving)
 - `src/helix/tsx-view-compiler.ts` — framework TSX compile core (AST to template/patch descriptors)
 - `src/helix/binding-map-compiler.ts` — framework AST scan helpers for binding/list and client-handler extraction
+- `src/helix/client-action-metadata.ts` — framework declarative client-action metadata typing + binding event resolution/validation
+- `src/helix/compiler-utils.ts` — shared naming helpers and TypeScript source parsing for compiler/codegen modules
+- `src/helix/codegen-utils.ts` — shared file discovery and generator entrypoint helpers
+- `src/helix/codegen-runner.ts` — shared codegen check/write orchestration and stale-output reconciliation helpers
+- `src/helix/codegen-emitters.ts` — reusable generated-module emitters for compiled views and binding maps
+- `src/helix/compiled-view-codegen.ts` — reusable compiled-view generation orchestration (scan/compile/emit/check/stale-prune)
+- `src/helix/build-guard.ts` — shared module-resolution and AST analysis core for browser-boundary guard scripts
 - `src/helix/html.ts` — generic HTML escaping + document shell start/end helpers
 - `src/helix/theme.ts` — first-class theme tokens + headless UI base styles
 - `src/helix/ui.ts` — framework-native headless HTML helpers (`uiButton`, `uiCard`, `uiInput`, `uiSelect`, `uiTable`)
@@ -88,9 +95,10 @@ For the full walkthrough (including troubleshooting), see `END_TO_END_FRAMEWORK_
 - `src/example/client/bootstrap.ts` — tiny client delegator bootstrap
 - `src/example/client/actions.ts` — lazy-loaded handlers (paging/sort/form)
 - `src/example/shared/*` — browser-safe modules shared by SSR wrappers and client chunks
+- `src/example/shared/client-action-metadata.ts` — app-level declarative client-action metadata manifest consumed by binding-map generation
 - `src/example/domain.ts` — in-memory users domain model
-- `src/example/scripts/generate-compiled-views.ts` — example-level wrapper that emits compiled modules using framework compiler core
-- `src/example/scripts/generate-binding-map.ts` — example-level wrapper that emits binding maps using framework binding compiler core
+- `src/example/scripts/generate-compiled-views.ts` — example-level wrapper that delegates compiled-view codegen orchestration to framework APIs
+- `src/example/scripts/generate-binding-map.ts` — example-level wrapper that emits binding maps using framework binding compiler + client-action metadata resolver cores
 - `src/example/utils/query.ts` — URL/query parsing for users paging/sorting
 - `src/example/utils/layout.ts` — app chrome + app-level layout CSS using Helix theme API
 

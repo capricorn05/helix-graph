@@ -110,7 +110,7 @@ Delivered: runtime state now uses live cells/derived state not just for users pa
 
 ## Medium-term (the actual moat)
 
-Status update (2026-03-14): ✅ Item 7 completed, ✅ Item 8 completed, ✅ Item 9 completed.
+Status update (2026-03-16): ✅ Item 7 completed, ✅ Item 8 completed, ✅ Item 9 completed, ✅ Item 10 completed, ✅ Item 11 completed.
 
 ### 7. View compiler – TSX to patches ✅ Completed (2026-03-14)
 
@@ -147,10 +147,55 @@ Delivered:
   `src/example/scripts/generate-binding-map.ts` as a thin wrapper for app-specific handler/action
   overrides and output wiring.
 
-Remaining follow-up candidates for the same extraction treatment:
+Follow-up extracted in Step 11: shared build-guard analysis now lives in `src/helix/build-guard.ts`.
 
-- `scripts/check-client-imports.mjs` + `scripts/check-where-boundaries.mjs`: extract shared module
-  graph resolution + browser-boundary analysis helpers into a framework build-guard module.
+---
+
+### 11. Framework extraction follow-through ✅ Completed (2026-03-16)
+
+The compiler and binding-map core extractions proved the right architecture direction, but the
+example scripts and repo-level guard scripts still hold reusable logic that should live in
+`src/helix`.
+
+Execution plan:
+
+1. **Shared compiler/codegen utilities** ✅ Completed (2026-03-15)
+   - Move shared naming helpers, TypeScript source parsing, recursive file discovery, and script
+     entrypoint detection into framework utilities.
+   - Delivered: `src/helix/compiler-utils.ts` and `src/helix/codegen-utils.ts`, and both
+     `generate-compiled-views` / `generate-binding-map` wrappers now consume them.
+2. **Generated-module emitters** ✅ Completed (2026-03-16)
+   - Move compiled-view module emission and binding-map module emission into reusable framework
+     emitters so example scripts supply config instead of generating source strings directly.
+   - Delivered: `src/helix/codegen-emitters.ts`, and both wrappers now delegate generated module
+     source rendering to framework emitter APIs.
+3. **Codegen runner orchestration** ✅ Completed (2026-03-16)
+   - Extract drift checks, stale-output pruning, write/check mode orchestration, and status output
+     into a shared framework codegen runner.
+   - Delivered: `src/helix/codegen-runner.ts` plus wrapper rewiring so
+     `generate-compiled-views` and `generate-binding-map` now share framework-level
+     check/write orchestration and stale-output reconciliation APIs.
+4. **Build-guard analysis core** ✅ Completed (2026-03-16)
+   - Extract shared module resolution, AST helpers, and browser-boundary analysis from
+     `check-client-imports` and `check-where-boundaries` into a framework build-guard module.
+   - Delivered: `src/helix/build-guard.ts` as the shared analysis core, plus
+     compiled guard entrypoints in `src/scripts/check-client-imports.ts` and
+     `src/scripts/check-where-boundaries.ts` with thin root wrappers in `scripts/*.mjs`.
+5. **Client action metadata** ✅ Completed (2026-03-16)
+   - Introduce framework-level metadata for `actionId`, `handlerExport`, `preventDefault`, and
+     chunk targeting so wrapper override maps can be replaced with declarative configuration.
+   - Delivered: framework client-action metadata module in `src/helix/client-action-metadata.ts`,
+     app manifest in `src/example/shared/client-action-metadata.ts`, and binding-map script
+     rewiring so `src/example/scripts/generate-binding-map.ts` consumes framework metadata
+     resolution + stale/missing-export validations instead of ad hoc override maps.
+6. **Compiled-view codegen orchestration** ✅ Completed (2026-03-16)
+   - Extract compiled-view scan/compile/emit/check/stale-prune flow from
+     `generate-compiled-views` into a framework API so example scripts remain path-focused wrappers.
+   - Delivered: framework orchestration API in `src/helix/compiled-view-codegen.ts` and wrapper
+     rewiring so `src/example/scripts/generate-compiled-views.ts` now delegates to
+     `runCompiledViewCodegen(...)`.
+
+All Step 11 phases are now complete.
 
 ---
 
@@ -208,10 +253,11 @@ Delivered:
 - Added dedicated API and client binding path (`/api/external-data-rich`) to keep paging updates
   incremental under heavier row rendering load.
 
-Follow-up:
+Follow-up: ✅ Completed (2026-03-16)
 
-- Add a repeatable benchmark case comparing patch/update latency between `/external-data` and
-  `/external-data-rich` and capture results in `src/bench/index.ts` output.
+- Added deterministic in-process benchmark coverage in `src/bench/index.ts` comparing
+  `/external-data` vs `/external-data-rich` update payload latency (avg/p95/max), throughput,
+  relative slowdown, and average payload size without external network dependency.
 
 ---
 
@@ -228,7 +274,9 @@ Follow-up:
 8. ✅ Enforce `where` placement
 9. ✅ Document recommended page pattern + end-to-end flow
 10. ✅ Add high-density external table perf scenario
+11. ✅ Framework extraction follow-through
 ```
 
 Steps 1–6 are all tractable without a compiler and together turn the prototype into something
-with a sound foundation. Steps 7–8 are where the framework becomes genuinely differentiated.
+with a sound foundation. Steps 7–11 now establish the framework differentiation and extraction
+baseline for ongoing feature work.

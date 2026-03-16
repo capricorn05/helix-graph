@@ -53,19 +53,6 @@ const VOID_TAGS = new Set([
   "wbr",
 ]);
 
-export function toPascalCase(value: string): string {
-  return value
-    .split(/[-_]/g)
-    .filter(Boolean)
-    .map((part) => part[0].toUpperCase() + part.slice(1))
-    .join("");
-}
-
-export function toCamelCase(value: string): string {
-  const pascal = toPascalCase(value);
-  return pascal.length === 0 ? "" : pascal[0].toLowerCase() + pascal.slice(1);
-}
-
 function escapeHtml(input: string): string {
   return input
     .replace(/&/g, "&amp;")

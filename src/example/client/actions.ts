@@ -377,7 +377,7 @@ function readExternalMediaStateFromDom(): ExternalMediaPageState | null {
     page: Math.max(1, Math.floor(parseNumeric(stateElement.dataset.page, 1))),
     pageSize: Math.max(
       1,
-      Math.floor(parseNumeric(stateElement.dataset.pageSize, 30)),
+      Math.floor(parseNumeric(stateElement.dataset.pageSize, 100)),
     ),
     total: Math.max(0, Math.floor(parseNumeric(stateElement.dataset.total, 0))),
     totalPages: Math.max(

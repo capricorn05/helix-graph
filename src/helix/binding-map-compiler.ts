@@ -7,36 +7,6 @@ export interface BindingRecord {
   event: BindingEvent;
 }
 
-export function toPascalCase(value: string): string {
-  return value
-    .split(/[-_]/g)
-    .filter(Boolean)
-    .map((part) => part[0].toUpperCase() + part.slice(1))
-    .join("");
-}
-
-export function toCamelCase(value: string): string {
-  const pascal = toPascalCase(value);
-  return pascal.length > 0 ? pascal[0].toLowerCase() + pascal.slice(1) : "";
-}
-
-export function parseTypeScriptSourceFile(
-  filePath: string,
-  content: string,
-): ts.SourceFile {
-  const scriptKind = filePath.endsWith(".tsx")
-    ? ts.ScriptKind.TSX
-    : ts.ScriptKind.TS;
-
-  return ts.createSourceFile(
-    filePath,
-    content,
-    ts.ScriptTarget.Latest,
-    true,
-    scriptKind,
-  );
-}
-
 function hasExportModifier(node: ts.Node): boolean {
   const modifiers = ts.canHaveModifiers(node)
     ? ts.getModifiers(node)
@@ -138,7 +108,9 @@ function collectListsFromHtmlLiteral(
   }
 }
 
-export function collectBindingsAndListsFromViewSource(sourceFile: ts.SourceFile): {
+export function collectBindingsAndListsFromViewSource(
+  sourceFile: ts.SourceFile,
+): {
   bindings: BindingRecord[];
   listIds: string[];
 } {
@@ -148,7 +120,11 @@ export function collectBindingsAndListsFromViewSource(sourceFile: ts.SourceFile)
   const visit = (node: ts.Node): void => {
     const literalText = nodeLiteralText(node);
     if (literalText) {
-      collectBindingsFromHtmlLiteral(literalText, sourceFile.fileName, bindings);
+      collectBindingsFromHtmlLiteral(
+        literalText,
+        sourceFile.fileName,
+        bindings,
+      );
       collectListsFromHtmlLiteral(literalText, listIds);
     }
 
@@ -206,7 +182,9 @@ export function collectBindingsAndListsFromViewSource(sourceFile: ts.SourceFile)
   };
 }
 
-export function collectClientHandlersFromSource(sourceFile: ts.SourceFile): string[] {
+export function collectClientHandlersFromSource(
+  sourceFile: ts.SourceFile,
+): string[] {
   const handlers = new Set<string>();
 
   for (const statement of sourceFile.statements) {

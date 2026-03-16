@@ -7,7 +7,7 @@ import {
   type ExternalProductsSortColumn,
 } from "../utils/query.js";
 
-export const EXTERNAL_PRODUCTS_PAGE_SIZE = 30;
+export const EXTERNAL_PRODUCTS_PAGE_SIZE = 100;
 export const EXTERNAL_PRODUCTS_TOTAL_ROWS = 10_000;
 
 export interface ExternalProductRow {

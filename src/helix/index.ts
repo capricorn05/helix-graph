@@ -22,10 +22,16 @@ export * from "./resume.js";
 export * from "./node-http.js";
 export * from "./placement.js";
 export * from "./view-compiler.js";
+export * from "./compiler-utils.js";
+export * from "./codegen-utils.js";
+export * from "./codegen-runner.js";
+export * from "./codegen-emitters.js";
+export * from "./compiled-view-codegen.js";
+export * from "./client-action-metadata.js";
+export * from "./build-guard.js";
 export * from "./tsx-view-compiler.js";
 export {
-	parseTypeScriptSourceFile,
-	collectBindingsAndListsFromViewSource,
-	collectClientHandlersFromSource,
-	type BindingRecord,
+  collectBindingsAndListsFromViewSource,
+  collectClientHandlersFromSource,
+  type BindingRecord,
 } from "./binding-map-compiler.js";

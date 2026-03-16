@@ -199,7 +199,17 @@ src/example/
 ```
 
 `src/helix/tsx-view-compiler.ts` and `src/helix/binding-map-compiler.ts` now hold reusable compile/
-scan cores; example scripts focus on repo-specific output paths, overrides, and binding conventions.
+scan cores; `src/helix/compiler-utils.ts`, `src/helix/codegen-utils.ts`,
+`src/helix/codegen-emitters.ts`, `src/helix/codegen-runner.ts`,
+`src/helix/compiled-view-codegen.ts`, and
+`src/helix/build-guard.ts` now hold shared naming, TypeScript source parsing, file discovery,
+generator entrypoint helpers, generated-module source emitters, reusable check/write +
+stale-output orchestration, compiled-view codegen orchestration, and browser-boundary analysis
+core for guard scripts.
+`src/helix/client-action-metadata.ts` now holds declarative client-action metadata typing,
+handler/action inference, and stale/missing-export validation for generated binding maps.
+Example scripts now focus on repo-specific output paths and app manifests such as
+`src/example/shared/client-action-metadata.ts`.
 
 Browser-delivered modules should stay inside `src/example/client`, `src/example/shared`, or `src/helix` so emitted ESM specifiers resolve to served URLs at runtime.
 
@@ -281,5 +291,5 @@ When adding features to this roadmap:
 
 ---
 
-**Last Updated:** March 13, 2026  
+**Last Updated:** March 16, 2026  
 **Version:** 0.1 (pre-roadmap stabilization)
