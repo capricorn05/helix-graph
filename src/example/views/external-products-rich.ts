@@ -318,7 +318,7 @@ function renderExternalProductsRichTable(
   <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="external-media-modal-title">
     <div class="modal-header">
       <h2 data-hx-id="external-media-modal-title">Product Details</h2>
-      ${uiButton({ label: "Close", bind: "external-media-detail-close", variant: "ghost" })}
+      ${uiButton({ label: "Close", bind: "external-media-detail-close", variant: "ghost", attrs: { "data-hx-id": "external-media-modal-close-btn" } })}
     </div>
 
     <img data-hx-id="external-media-modal-thumbnail" class="modal-thumb" alt="" src="" />

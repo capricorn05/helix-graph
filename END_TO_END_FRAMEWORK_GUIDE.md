@@ -189,7 +189,7 @@ Client behavior checklist:
 
 If you use `data-hx-bind`, export handlers in:
 
-- `src/example/client/actions.ts`
+- feature modules under `src/example/client/actions-*.ts` (re-exported by `src/example/client/actions.ts`)
 
 Then regenerate/check bindings:
 
@@ -225,7 +225,7 @@ npm run verify
 - [ ] Routes: `src/example/routes/index.ts`
 - [ ] Client module (optional hybrid): `src/example/client/<feature>.ts`
 - [ ] Bootstrap import (optional hybrid): `src/example/client/bootstrap.ts`
-- [ ] Client bindings (if used): `src/example/client/actions.ts`
+- [ ] Client bindings (if used): `src/example/client/actions-*.ts` + `src/example/client/actions.ts` barrel
 - [ ] Generated bindings checked: `src/example/views/binding-map.generated.ts`
 
 ---

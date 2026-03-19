@@ -1,8 +1,15 @@
 import type { BindingMap } from "../../../helix/types.js";
 import {
+  compiledViewId,
+  defineCompiledViewArtifact,
   renderCompiledView,
+  serializeClientOnlyProps,
   type CompiledViewArtifact,
 } from "../../../helix/view-compiler.js";
+
+export type AboutCompiledViewProps = Parameters<
+  typeof import("../../views-tsx/about.view.js").default
+>[0];
 
 const compiledBindingMap: BindingMap = {
   events: {
@@ -13,26 +20,32 @@ const compiledBindingMap: BindingMap = {
   },
 };
 
-export const aboutCompiledArtifact: CompiledViewArtifact<any> = {
-  template: "<section><h2>Helix Graph Framework</h2><p>Helix is a reactive, graph-based framework for building full-stack web applications\n          with TypeScript. It unifies server and client concerns through a shared reactive graph\n          where views, resources, actions, and routes are first-class nodes.\n        </p></section><section><h2>Core Concepts</h2><dl><dt>Cells</dt><dd>Reactive state that drives the graph</dd><dt>Resources</dt><dd>Server-side async data sources with caching and deduplication</dd><dt>Actions</dt><dd>Server-side mutations with invalidation and capability checks</dd><dt>Views</dt><dd>Declarative HTML rendering tied to reactive state</dd><dt>Routes</dt><dd>Graph nodes that dispatch HTTP requests to handlers</dd></dl></section><section><h2>Architecture</h2><p><strong>Server-Side:</strong><span data-hx-id=\"hx-about-slot-1\">__HX_TEXT_about_1_hx-about-slot-1__</span>Graph router (<code>defineRoute</code>) compiles URL patterns,\n          dispatches requests, coordinates resource reads and action invocations.\n        </p><p><strong>Client-Side:</strong><span data-hx-id=\"hx-about-slot-2\">__HX_TEXT_about_2_hx-about-slot-2__</span>SSR-embedded graph snapshot + binding map enable resumable\n          activation. URL is a reactive cell; navigation updates it without full page reload.\n        </p></section><section><h2>Demo Features</h2><ul><li>Graph-native routing with pattern matching</li><li>Streaming SSR with resumable hydration</li><li>Real-time user management (create, read, update, delete)</li><li>Client-side graph inspector (press Ctrl+M)</li><li>Type-safe route parameters and responses</li></ul></section>",
-  patches: [
+export const aboutCompiledArtifact: CompiledViewArtifact<AboutCompiledViewProps> = defineCompiledViewArtifact<AboutCompiledViewProps>(
+  compiledViewId("about"),
+  "about",
+  {
+    template: "<section><h2>Helix Graph Framework</h2><p>Helix is a reactive, graph-based framework for building full-stack web applications\n          with TypeScript. It unifies server and client concerns through a shared reactive graph\n          where views, resources, actions, and routes are first-class nodes.\n        </p></section><section><h2>Core Concepts</h2><dl><dt>Cells</dt><dd>Reactive state that drives the graph</dd><dt>Resources</dt><dd>Server-side async data sources with caching and deduplication</dd><dt>Actions</dt><dd>Server-side mutations with invalidation and capability checks</dd><dt>Views</dt><dd>Declarative HTML rendering tied to reactive state</dd><dt>Routes</dt><dd>Graph nodes that dispatch HTTP requests to handlers</dd></dl></section><section><h2>Architecture</h2><p><strong>Server-Side:</strong><span data-hx-id=\"hx-about-slot-1\">__HX_TEXT_about_1_hx-about-slot-1__</span>Graph router (<code>defineRoute</code>) compiles URL patterns,\n          dispatches requests, coordinates resource reads and action invocations.\n        </p><p><strong>Client-Side:</strong><span data-hx-id=\"hx-about-slot-2\">__HX_TEXT_about_2_hx-about-slot-2__</span>SSR-embedded graph snapshot + binding map enable resumable\n          activation. URL is a reactive cell; navigation updates it without full page reload.\n        </p></section><section><h2>Demo Features</h2><ul><li>Graph-native routing with pattern matching</li><li>Streaming SSR with resumable hydration</li><li>Real-time user management (create, read, update, delete)</li><li>Client-side graph inspector (press Ctrl+M)</li><li>Type-safe route parameters and responses</li></ul></section>",
+    patches: [
     {
       kind: "text",
       token: "__HX_TEXT_about_1_hx-about-slot-1__",
       targetId: "hx-about-slot-1",
-      evaluate: (_props: any) => (" "),
+      evaluate: (_props: AboutCompiledViewProps) => (" "),
     },
     {
       kind: "text",
       token: "__HX_TEXT_about_2_hx-about-slot-2__",
       targetId: "hx-about-slot-2",
-      evaluate: (_props: any) => (" "),
+      evaluate: (_props: AboutCompiledViewProps) => (" "),
     }
-  ],
-  bindingMap: compiledBindingMap,
-};
+    ],
+    bindingMap: compiledBindingMap,
+  },
+);
 
-export function renderAboutCompiledView(_props: any): string {
+export const aboutCompiledViewId = aboutCompiledArtifact.id;
+
+export function renderAboutCompiledView(_props: AboutCompiledViewProps): string {
   return renderCompiledView(aboutCompiledArtifact, _props);
 }
 

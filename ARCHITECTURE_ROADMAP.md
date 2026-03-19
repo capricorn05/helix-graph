@@ -7,8 +7,13 @@ Helix Graph is a **server-first, progressive-enhancement framework** that combin
 - **SSR-first rendering** via pre-compiled template strings (`.tsx` → `.compiled.ts` → wrapper)
 - **Thin client reconciler** for table/list updates using `reconcileKeyed()` and `schedulePatchBatch()`
 - **Binding-based event delegation** via `data-hx-bind` attributes and auto-generated binding map
+  - Binding IDs (`data-hx-bind="save-user"`) map to handler exports (`onSaveUser`) by convention
+  - Compile-time validation ensures binding ID → handler mapping is sound
+  - Optional event override with `data-hx-event="keydown"` on same element for keyboard handlers
+  - Generation-time conflict detection (duplicate binding IDs, mismatched event types)
 - **Post-request granular updates** (JSON fetch → patch batch) for data-driven interactions
 - **Compiled shell + server-composed slots** as the default page authoring pattern for maintainability
+- **Unified graph wiring across request flow** (`RouteNode -> ViewNode -> ResourceNode`) for runtime introspection and traceability
 
 ### Key Design Principles
 
@@ -75,10 +80,10 @@ Host Listings (`/host-listings`) is the reference for this combined approach.
 - [x] **Server actions** for mutations with invalidation
 - [x] **Formal documentation** of the SSR → component → client binding pipeline
 - [x] **Documented default authoring pattern** (compiled shell + optional hybrid JSON patching)
-- [ ] **Comprehensive test coverage** for reconciliation edge cases
+- [x] **Graph/compiler/resume integration coverage** (route→view→resource wiring + SSR snapshot/resume tests)
 - [ ] **Perf benchmarks** comparing SSR fragment load vs. full page refresh
 
-**Status:** Mostly complete; reconciliation/actions flows are validated via `npm run verify`.
+**Status:** Foundation complete for graph wiring, compiler guardrails, and resumability; perf benchmarks remain open.
 
 ---
 
@@ -128,7 +133,20 @@ Host Listings (`/host-listings`) is the reference for this combined approach.
 - [ ] **Conflict handling** if server version changes while editing
 - **Why:** Server patch operations break cursor, selection, undo stack, IME composition.
 
-#### 3d. Transient Selection & Focus State
+#### 3d. Headless Primitive Layer
+
+Decouples UI component behavior (open/close, focus management, keyboard interaction, positioning, accessibility) from visual rendering. Provides a framework-agnostic, React-free headless primitive layer covering modal, floating, listbox, disclosure, and notification patterns.
+
+**Structure:** `src/helix/primitives/`
+
+- Core utilities: controllable-state, focus-scope, keyboard, dismissable-layer, layer-stack, portal, positioning, a11y, events
+- Primitives: dialog, popover, menu, tabs, tooltip, accordion, toast, dropdown, select, combobox
+- All primitives support dual state API (web-style props + Helix Cell integration)
+- Compiler integration now supports explicit `data-hx-event` binding overrides for keyboard/input-driven handlers while runtime listeners still flow through the `EventAdapter` seam
+
+**Completion:** Primitive layer and example integrations are complete on main branch, including dialog-backed product detail overlays, a dedicated `/primitives` showcase route, Search/Settings primitive control upgrades, and collision-aware floating positioning.
+
+#### 3e. Transient Selection & Focus State
 
 - [ ] **Expanded row detail view** (client-owned overlay)
 - [ ] **Multi-select checkbox state** (client-owned until submit)
@@ -193,7 +211,7 @@ src/example/
   ├─ scripts/          — app-level wrappers for codegen output policy
   ├─ views/            — server wrappers (wire compiled + SSR)
   │  └─ compiled/      — auto-generated static templates
-  ├─ client/           — all client handlers (bindings + actions)
+  ├─ client/           — feature-scoped handler modules (`actions-users`, `actions-posts`, `actions-external`, `actions-navigation`) plus `actions.ts` barrel export
   ├─ shared/           — browser-safe helpers reusable by SSR wrappers + client modules
   └─ handlers/         — SSR page handlers + API endpoints
 ```
@@ -217,6 +235,12 @@ Future (as islands grow):
 
 ```
 src/helix/
+  ├─ primitives/       — headless UI primitives (dialog, popover, menu, tabs)
+  │  ├─ core/         — shared utilities (focus, keyboard, positioning, a11y)
+  │  ├─ dialog.ts
+  │  ├─ popover.ts
+  │  ├─ menu.ts
+  │  └─ tabs.ts
   ├─ islands/          — island lifecycle/context management
   ├─ form.ts           — enhanced form state + optimistic updates
   ├─ autocomplete.ts   — search/filter component primitive

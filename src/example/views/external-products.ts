@@ -114,7 +114,7 @@ function renderExternalProductsDataTable(
   <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="external-modal-title">
     <div class="modal-header">
       <h2 data-hx-id="external-modal-title">Product Details</h2>
-      ${uiButton({ label: "Close", bind: "external-detail-close", variant: "ghost" })}
+      ${uiButton({ label: "Close", bind: "external-detail-close", variant: "ghost", attrs: { "data-hx-id": "external-modal-close-btn" } })}
     </div>
 
     <img data-hx-id="external-modal-thumbnail" class="modal-thumb" alt="" src="" />

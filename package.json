@@ -15,7 +15,9 @@
     "hooks:install": "node scripts/install-git-hooks.mjs",
     "start": "node dist/example/server.js",
     "dev": "npm run build && npm run start",
+    "dev:watch": "npm run build && NODE_ENV=development node dist/example/server-dev.js",
     "bench": "npm run build && node dist/bench/index.js",
+    "bench:ssr": "npm run bench 2>&1 | grep -A 100 'SSR & Resume Performance'",
     "test": "npm run build && node --test dist/tests"
   },
   "devDependencies": {

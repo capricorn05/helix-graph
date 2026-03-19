@@ -110,6 +110,91 @@ p { margin: 0.25rem 0 1rem; color: hsl(var(--muted-foreground)); }
 
 .toolbar { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem; }
 
+.primitive-demo-root {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.primitive-surface {
+  width: min(360px, 100%);
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 2px);
+  background: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+  padding: 0.6rem 0.72rem;
+}
+
+.primitive-tooltip {
+  max-width: 280px;
+}
+
+.primitive-listbox {
+  width: min(280px, 100%);
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 2px);
+  background: hsl(var(--popover, var(--card)));
+  color: hsl(var(--popover-foreground, var(--card-foreground)));
+  padding: 0.25rem;
+}
+
+.primitive-option {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: calc(var(--radius) - 4px);
+  background: transparent;
+  color: hsl(var(--foreground));
+  padding: 0.4rem 0.5rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.primitive-option:hover,
+.primitive-option[data-hx-highlighted="true"] {
+  background: hsl(var(--accent));
+}
+
+.primitive-option[data-hx-selected="true"] {
+  font-weight: 600;
+}
+
+.primitive-tabs [data-hx-panel] {
+  margin-top: 0.45rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 2px);
+  padding: 0.55rem;
+}
+
+.primitive-accordion {
+  margin-top: 0.75rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.primitive-accordion [data-hx-accordion-trigger] {
+  width: 100%;
+  text-align: left;
+}
+
+.primitive-accordion [data-hx-accordion-content] {
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 2px);
+  padding: 0.5rem;
+}
+
+.primitive-form-row {
+  margin-top: 0.8rem;
+  display: grid;
+  gap: 0.45rem;
+  max-width: 360px;
+}
+
+.primitive-select-wrap {
+  display: grid;
+  gap: 0.35rem;
+  max-width: 180px;
+}
+
 section {
   margin-bottom: 0.1rem;
   border: 1px solid hsl(var(--border));

@@ -7,7 +7,12 @@ const STYLE_WHITELIST = new Set([
   "transform",
   "color",
   "backgroundColor",
-  "fontWeight"
+  "fontWeight",
+  "top",
+  "left",
+  "width",
+  "height",
+  "position",
 ]);
 
 export class PatchRuntime {
@@ -15,7 +20,7 @@ export class PatchRuntime {
 
   constructor(
     private readonly root: ParentNode = document,
-    private readonly maxCacheEntries = 500
+    private readonly maxCacheEntries = 500,
   ) {}
 
   private pruneDisconnectedTargets(): void {
@@ -78,15 +83,25 @@ export class PatchRuntime {
         target.classList.toggle(op.className, op.enabled);
         break;
       case "setValue": {
-        if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement)) {
-          throw new Error(`setValue requires a form control target: ${op.targetId}`);
+        if (
+          !(
+            target instanceof HTMLInputElement ||
+            target instanceof HTMLTextAreaElement ||
+            target instanceof HTMLSelectElement
+          )
+        ) {
+          throw new Error(
+            `setValue requires a form control target: ${op.targetId}`,
+          );
         }
         target.value = op.value;
         break;
       }
       case "setChecked": {
         if (!(target instanceof HTMLInputElement)) {
-          throw new Error(`setChecked requires an input target: ${op.targetId}`);
+          throw new Error(
+            `setChecked requires an input target: ${op.targetId}`,
+          );
         }
         target.checked = op.value;
         break;

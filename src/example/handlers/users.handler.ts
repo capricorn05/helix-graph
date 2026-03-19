@@ -1,4 +1,8 @@
-import { createGraphSnapshot } from "../../helix/index.js";
+import {
+  compiledViewId,
+  connectRouteViewResources,
+  createGraphSnapshot,
+} from "../../helix/index.js";
 import type { BindingMap, RouteContext } from "../../helix/index.js";
 import {
   usersPageResource,
@@ -9,6 +13,7 @@ import {
   renderUserDetailPage,
   renderUserEditPage,
   renderUsersPageContent,
+  usersPageView,
 } from "../views/users.view.js";
 import { renderAdminLayout } from "../views/admin-layout.js";
 import { renderDocumentHead, renderPageEnd } from "../utils/html.js";
@@ -19,6 +24,12 @@ export async function handleHome(ctx: RouteContext): Promise<void> {
   const query = resolveUsersQuery(ctx.url);
   const usersPage = await usersPageResource.read(query);
   const bindingMap = buildAppBindingMap();
+
+  connectRouteViewResources(
+    ctx.routeId,
+    [compiledViewId("users-page-content"), usersPageView.id],
+    [usersPageResource.id],
+  );
 
   const snapshot = createGraphSnapshot(
     {
@@ -69,6 +80,12 @@ export async function handleUserDetail(
     return;
   }
 
+  connectRouteViewResources(
+    ctx.routeId,
+    [compiledViewId("user-detail")],
+    [userDetailResource.id],
+  );
+
   const snapshot = createGraphSnapshot(
     { userId: user.id },
     { includeGraph: false },
@@ -104,6 +121,12 @@ export async function handleUserEdit(
     ctx.response.end();
     return;
   }
+
+  connectRouteViewResources(
+    ctx.routeId,
+    [compiledViewId("user-edit")],
+    [userDetailResource.id],
+  );
 
   const snapshot = createGraphSnapshot(
     { userId: user.id },

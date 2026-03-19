@@ -2,8 +2,8 @@ import type { User, UsersPage } from "../domain.js";
 import { uiDataTable } from "../../helix/components/table.js";
 import type { UIDataTableColumnDef } from "../../helix/components/table.js";
 import { escapeHtml } from "../utils/html.js";
-import { renderReportsSummaryCompiledView } from "./compiled/reports-summary.compiled.js";
 import { renderReportsCompiledView } from "./compiled/reports.compiled.js";
+import { renderReportsSummaryCompiledView } from "./compiled/reports-summary.compiled.js";
 
 const reportUserColumns: UIDataTableColumnDef<User>[] = [
   {

@@ -1,3 +1,13 @@
+import { PatchRuntime } from "../../helix/patch.js";
+import {
+  cell,
+  derived,
+  type Cell,
+  type Derived,
+} from "../../helix/reactive.js";
+import { HelixScheduler } from "../../helix/scheduler.js";
+import type { Lane, PatchOp } from "../../helix/types.js";
+
 type GridColumn =
   | "id"
   | "title"
@@ -29,15 +39,27 @@ interface GridState {
   rows: GridRow[];
   rowElements: Map<string, HTMLTableRowElement>;
   filters: GridFilters;
+  viewStateCell: Cell<GridViewState>;
+  viewDerived: GridDerivedState;
+  patchRuntime: PatchRuntime;
+  scheduler: HelixScheduler;
+}
+
+interface GridViewState {
+  rowCount: number;
+  page: number;
+  pageSize: number;
+  totalRows: number;
+  totalPages: number;
   sortColumn: GridColumn | null;
   sortDirection: SortDirection;
 }
 
-interface GridPageState {
-  page: number;
-  totalPages: number;
-  sortColumn: GridColumn | null;
-  sortDirection: SortDirection;
+interface GridDerivedState {
+  pageLabel: Derived<string>;
+  totalLabel: Derived<string>;
+  prevDisabled: Derived<boolean>;
+  nextDisabled: Derived<boolean>;
 }
 
 interface ExternalProductsApiRow {
@@ -299,6 +321,8 @@ function setStatus(state: GridState, message: string): void {
 }
 
 function updateSortIndicators(state: GridState): void {
+  const viewState = state.viewStateCell.get();
+
   for (const indicator of state.root.querySelectorAll<HTMLElement>(
     "[data-grid-sort-indicator]",
   )) {
@@ -307,11 +331,11 @@ function updateSortIndicators(state: GridState): void {
       continue;
     }
 
-    const isActive = state.sortColumn === column;
+    const isActive = viewState.sortColumn === column;
     const arrow =
-      isActive && state.sortDirection === "asc"
+      isActive && viewState.sortDirection === "asc"
         ? "▲"
-        : isActive && state.sortDirection === "desc"
+        : isActive && viewState.sortDirection === "desc"
           ? "▼"
           : "↕";
 
@@ -323,11 +347,202 @@ function updateSortIndicators(state: GridState): void {
       button.setAttribute(
         "aria-label",
         isActive
-          ? `Sort by ${GRID_COLUMN_LABELS[column]} (${state.sortDirection})`
+          ? `Sort by ${GRID_COLUMN_LABELS[column]} (${viewState.sortDirection})`
           : `Sort by ${GRID_COLUMN_LABELS[column]}`,
       );
     }
   }
+}
+
+function makeInitialGridViewState(
+  root: HTMLElement,
+  rowCount: number,
+): GridViewState {
+  const element = root.querySelector(PAGE_STATE_SELECTOR);
+  const pageStateElement =
+    element instanceof HTMLElement ? element : null;
+
+  const page = Number(pageStateElement?.dataset.page);
+  const pageSize = Number(pageStateElement?.dataset.pageSize);
+  const totalRows = Number(pageStateElement?.dataset.total);
+  const totalPages = Number(pageStateElement?.dataset.totalPages);
+  const sortColumn = asGridColumn(pageStateElement?.dataset.sortCol);
+  const sortDirection: SortDirection =
+    pageStateElement?.dataset.sortDir === "desc" ? "desc" : "asc";
+
+  return {
+    rowCount: Math.max(0, Math.floor(rowCount)),
+    page: Number.isFinite(page) ? Math.max(1, Math.floor(page)) : 1,
+    pageSize: Number.isFinite(pageSize)
+      ? Math.max(1, Math.floor(pageSize))
+      : Math.max(1, Math.floor(rowCount) || 1),
+    totalRows: Number.isFinite(totalRows)
+      ? Math.max(0, Math.floor(totalRows))
+      : Math.max(0, Math.floor(rowCount)),
+    totalPages: Number.isFinite(totalPages)
+      ? Math.max(1, Math.floor(totalPages))
+      : 1,
+    sortColumn,
+    sortDirection,
+  };
+}
+
+function makeGridDerivedState(
+  viewStateCell: Cell<GridViewState>,
+): GridDerivedState {
+  return {
+    pageLabel: derived(
+      () => {
+        const viewState = viewStateCell.get();
+        return `Page ${viewState.page} / ${viewState.totalPages}`;
+      },
+      { scope: "view", name: "external-grid-page-label" },
+    ),
+    totalLabel: derived(
+      () => {
+        const viewState = viewStateCell.get();
+        return `(${viewState.totalRows} total)`;
+      },
+      { scope: "view", name: "external-grid-total-label" },
+    ),
+    prevDisabled: derived(
+      () => viewStateCell.get().page <= 1,
+      { scope: "view", name: "external-grid-prev-disabled" },
+    ),
+    nextDisabled: derived(
+      () => {
+        const viewState = viewStateCell.get();
+        return viewState.page >= viewState.totalPages;
+      },
+      { scope: "view", name: "external-grid-next-disabled" },
+    ),
+  };
+}
+
+function scheduleGridPatchBatch(
+  state: GridState,
+  trigger: string,
+  lane: Lane,
+  patches: PatchOp[],
+): void {
+  state.scheduler.schedule({
+    trigger,
+    lane,
+    patches,
+    nodes: Array.from(new Set(patches.map((patch) => patch.targetId))),
+    run: (batch) => state.patchRuntime.applyBatch(batch),
+  });
+}
+
+function hasGridPatchTarget(state: GridState, targetId: string): boolean {
+  return state.root.querySelector(`[data-hx-id="${targetId}"]`) instanceof Element;
+}
+
+function scheduleGridReactivePatches(
+  state: GridState,
+  trigger: string,
+  patches: PatchOp[],
+): void {
+  const presentPatches = patches.filter((patch) =>
+    hasGridPatchTarget(state, patch.targetId),
+  );
+  if (presentPatches.length === 0) {
+    return;
+  }
+
+  scheduleGridPatchBatch(state, trigger, "input", presentPatches);
+}
+
+function installGridViewReactivity(state: GridState): void {
+  state.viewStateCell.subscribe((viewState) => {
+    scheduleGridReactivePatches(state, "external-grid:view-state", [
+      {
+        op: "setText",
+        targetId: "external-grid-row-count",
+        value: String(viewState.rowCount),
+      },
+      {
+        op: "setText",
+        targetId: "external-grid-summary-page",
+        value: String(viewState.page),
+      },
+      {
+        op: "setText",
+        targetId: "external-grid-summary-total",
+        value: String(viewState.totalRows),
+      },
+      {
+        op: "setAttr",
+        targetId: "external-grid-page-state",
+        name: "data-page",
+        value: String(viewState.page),
+      },
+      {
+        op: "setAttr",
+        targetId: "external-grid-page-state",
+        name: "data-page-size",
+        value: String(viewState.pageSize),
+      },
+      {
+        op: "setAttr",
+        targetId: "external-grid-page-state",
+        name: "data-total",
+        value: String(viewState.totalRows),
+      },
+      {
+        op: "setAttr",
+        targetId: "external-grid-page-state",
+        name: "data-total-pages",
+        value: String(viewState.totalPages),
+      },
+      {
+        op: "setAttr",
+        targetId: "external-grid-page-state",
+        name: "data-sort-col",
+        value: viewState.sortColumn ?? "",
+      },
+      {
+        op: "setAttr",
+        targetId: "external-grid-page-state",
+        name: "data-sort-dir",
+        value: viewState.sortDirection,
+      },
+    ]);
+  });
+
+  state.viewDerived.pageLabel.subscribe((value) => {
+    scheduleGridReactivePatches(state, "external-grid:page-label", [
+      { op: "setText", targetId: "external-grid-page-label", value },
+    ]);
+  });
+
+  state.viewDerived.totalLabel.subscribe((value) => {
+    scheduleGridReactivePatches(state, "external-grid:total-label", [
+      { op: "setText", targetId: "external-grid-total-label", value },
+    ]);
+  });
+
+  state.viewDerived.prevDisabled.subscribe((disabled) => {
+    scheduleGridReactivePatches(state, "external-grid:prev-disabled", [
+      {
+        op: "setAttr",
+        targetId: "external-grid-prev",
+        name: "disabled",
+        value: disabled ? "disabled" : null,
+      },
+    ]);
+  });
+
+  state.viewDerived.nextDisabled.subscribe((disabled) => {
+    scheduleGridReactivePatches(state, "external-grid:next-disabled", [
+      {
+        op: "setAttr",
+        targetId: "external-grid-next",
+        name: "disabled",
+        value: disabled ? "disabled" : null,
+      },
+    ]);
+  });
 }
 
 function ensureGridState(): GridState | null {
@@ -347,99 +562,44 @@ function ensureGridState(): GridState | null {
     return currentGridState;
   }
 
-  const pageState = parsePageState(root);
+  const rows = parseRowsFromDom(body);
+  const viewStateCell = cell(makeInitialGridViewState(root, rows.length), {
+    scope: "view",
+    name: "external-grid-view-state",
+    clientOnly: true,
+    serializable: false,
+  });
 
   currentGridState = {
     root,
     body,
-    rows: parseRowsFromDom(body),
+    rows,
     rowElements: collectRowElements(body),
     filters: readFilters(root),
-    sortColumn: pageState?.sortColumn ?? null,
-    sortDirection: pageState?.sortDirection ?? "asc",
+    viewStateCell,
+    viewDerived: makeGridDerivedState(viewStateCell),
+    patchRuntime: new PatchRuntime(root),
+    scheduler: new HelixScheduler(),
   };
 
+  installGridViewReactivity(currentGridState);
   updateSortIndicators(currentGridState);
   return currentGridState;
 }
 
-function parsePageState(root: HTMLElement): GridPageState | null {
-  const element = root.querySelector(PAGE_STATE_SELECTOR);
-  if (!(element instanceof HTMLElement)) {
-    return null;
-  }
-
-  const page = Number(element.dataset.page);
-  const totalPages = Number(element.dataset.totalPages);
-  const sortColumn = asGridColumn(element.dataset.sortCol);
-  const sortDirection: SortDirection =
-    element.dataset.sortDir === "desc" ? "desc" : "asc";
-
-  if (!Number.isFinite(page) || !Number.isFinite(totalPages)) {
-    return null;
-  }
-
-  return {
-    page: Math.max(1, Math.floor(page)),
-    totalPages: Math.max(1, Math.floor(totalPages)),
-    sortColumn,
-    sortDirection,
-  };
-}
-
-function setTextByHxId(
-  root: HTMLElement,
-  targetId: string,
-  value: string,
-): void {
-  const element = root.querySelector(`[data-hx-id="${targetId}"]`);
-  if (element instanceof HTMLElement) {
-    element.textContent = value;
-  }
-}
-
-function updateGridMeta(
+function updateGridViewState(
   state: GridState,
   productsPage: ExternalProductsApiResponse,
 ): void {
-  const root = state.root;
-  const pageStateElement = root.querySelector(PAGE_STATE_SELECTOR);
-  if (pageStateElement instanceof HTMLElement) {
-    pageStateElement.dataset.page = String(productsPage.page);
-    pageStateElement.dataset.pageSize = String(productsPage.pageSize);
-    pageStateElement.dataset.total = String(productsPage.total);
-    pageStateElement.dataset.totalPages = String(productsPage.totalPages);
-    pageStateElement.dataset.sortCol = productsPage.sortCol;
-    pageStateElement.dataset.sortDir = productsPage.sortDir;
-  }
-
-  const prevButton = root.querySelector('[data-hx-id="external-grid-prev"]');
-  if (prevButton instanceof HTMLButtonElement) {
-    prevButton.disabled = productsPage.page <= 1;
-  }
-
-  const nextButton = root.querySelector('[data-hx-id="external-grid-next"]');
-  if (nextButton instanceof HTMLButtonElement) {
-    nextButton.disabled = productsPage.page >= productsPage.totalPages;
-  }
-
-  setTextByHxId(
-    root,
-    "external-grid-page-label",
-    `Page ${productsPage.page} / ${productsPage.totalPages}`,
-  );
-  setTextByHxId(
-    root,
-    "external-grid-total-label",
-    `(${productsPage.total} total)`,
-  );
-  setTextByHxId(
-    root,
-    "hx-external-grid-slot-1",
-    String(productsPage.rows.length),
-  );
-  setTextByHxId(root, "hx-external-grid-slot-2", String(productsPage.page));
-  setTextByHxId(root, "hx-external-grid-slot-3", String(productsPage.total));
+  state.viewStateCell.set({
+    rowCount: productsPage.rows.length,
+    page: productsPage.page,
+    pageSize: productsPage.pageSize,
+    totalRows: productsPage.total,
+    totalPages: productsPage.totalPages,
+    sortColumn: asGridColumn(productsPage.sortCol),
+    sortDirection: productsPage.sortDir === "desc" ? "desc" : "asc",
+  });
 }
 
 function applyFiltersToControls(
@@ -487,13 +647,11 @@ function applyExternalProductsPage(
 ): void {
   state.rows = toGridRows(productsPage.rows);
   state.filters = { ...productsPage.filters };
-  state.sortColumn = asGridColumn(productsPage.sortCol);
-  state.sortDirection = productsPage.sortDir === "desc" ? "desc" : "asc";
+  updateGridViewState(state, productsPage);
 
   renderRows(state);
   updateSortIndicators(state);
   applyFiltersToControls(state, productsPage.filters);
-  updateGridMeta(state, productsPage);
 }
 
 function buildHistoryUrl(productsPage: ExternalProductsApiResponse): string {
@@ -728,10 +886,7 @@ document.addEventListener("click", (event) => {
       return;
     }
 
-    const pageState = parsePageState(state.root);
-    if (!pageState) {
-      return;
-    }
+    const viewState = state.viewStateCell.get();
 
     const direction = pageButton.dataset.gridPage;
     if (direction !== "prev" && direction !== "next") {
@@ -740,11 +895,11 @@ document.addEventListener("click", (event) => {
 
     const delta = direction === "prev" ? -1 : 1;
     const nextPage = Math.min(
-      pageState.totalPages,
-      Math.max(1, pageState.page + delta),
+      viewState.totalPages,
+      Math.max(1, viewState.page + delta),
     );
 
-    if (nextPage === pageState.page) {
+    if (nextPage === viewState.page) {
       return;
     }
 
@@ -768,9 +923,10 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  const viewState = state.viewStateCell.get();
   const url = buildGridUrl();
   const nextDirection: SortDirection =
-    state.sortColumn === column && state.sortDirection === "asc"
+    viewState.sortColumn === column && viewState.sortDirection === "asc"
       ? "desc"
       : "asc";
 

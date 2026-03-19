@@ -88,7 +88,9 @@ function percentile(values: readonly number[], rank: number): number {
   return sorted[Math.max(0, position)];
 }
 
-type ExternalSeedProducts = Parameters<typeof setExternalProductSeedsForTests>[0];
+type ExternalSeedProducts = Parameters<
+  typeof setExternalProductSeedsForTests
+>[0];
 
 interface ExternalUpdateScenario {
   label: string;
@@ -138,7 +140,10 @@ function createDeterministicExternalSeedProducts(
   return seeds;
 }
 
-function buildExternalProductsQuery(path: string, page: number): ExternalProductsQuery {
+function buildExternalProductsQuery(
+  path: string,
+  page: number,
+): ExternalProductsQuery {
   const url = new URL(`http://bench.local${path}?page=${page}`);
   return resolveExternalProductsQuery(url, EXTERNAL_PRODUCTS_PAGE_SIZE);
 }
@@ -454,8 +459,12 @@ async function main(): Promise<void> {
   // ── External update payload latency ───────────────────────────────────
 
   header("External Update Payload Latency (warm 1-3, test 4-33)");
-  console.log(`\n  Variant             │ Avg      │ P95      │ Max      │ Throughput │ Avg size`);
-  console.log(`  ────────────────────┼──────────┼──────────┼──────────┼────────────┼──────────`);
+  console.log(
+    `\n  Variant             │ Avg      │ P95      │ Max      │ Throughput │ Avg size`,
+  );
+  console.log(
+    `  ────────────────────┼──────────┼──────────┼──────────┼────────────┼──────────`,
+  );
 
   const warmupPages = [1, 2, 3] as const;
   const measuredPages = Array.from({ length: 30 }, (_, index) => index + 4);
@@ -499,7 +508,9 @@ async function main(): Promise<void> {
     );
   }
 
-  const plainResult = results.find((result) => result.label === "/external-data");
+  const plainResult = results.find(
+    (result) => result.label === "/external-data",
+  );
   const richResult = results.find(
     (result) => result.label === "/external-data-rich",
   );
@@ -514,6 +525,31 @@ async function main(): Promise<void> {
         `${slowdown.toFixed(2)}x (${percentDelta.toFixed(1)}% ${direction} by avg latency)`,
     );
   }
+
+  // ── SSR & Resume Benchmarks ────────────────────────────────────────────
+
+  // Import SSR benchmarks
+  const {
+    benchmarkSsrGeneration,
+    benchmarkResumeInit,
+    benchmarkPatchApplication,
+    formatBenchmarkResults,
+  } = await import("../helix/ssr-bench.js");
+
+  header("SSR & Resume Performance");
+
+  const ssrGenResults = await benchmarkSsrGeneration();
+  console.log(formatBenchmarkResults([ssrGenResults]));
+
+  header("Client Resume Initialization");
+
+  const resumeResults = await benchmarkResumeInit();
+  console.log(formatBenchmarkResults([resumeResults]));
+
+  header("Patch Application (Incremental DOM Updates)");
+
+  const patchResults = await benchmarkPatchApplication();
+  console.log(formatBenchmarkResults([patchResults]));
 
   console.log("\n  Done.\n");
 }

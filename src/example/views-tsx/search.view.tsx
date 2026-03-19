@@ -1,6 +1,9 @@
 export interface SearchPageProps {
   searchInputHtml: string;
+  searchSuggestionsHtml: string;
   searchButtonHtml: string;
+  searchHelpTriggerHtml: string;
+  searchHelpPopoverHtml: string;
 }
 
 export default function SearchPageView(props: SearchPageProps) {
@@ -9,12 +12,20 @@ export default function SearchPageView(props: SearchPageProps) {
       <p>Find users by name or email.</p>
 
       <section>
-        <form method="GET" action="/search" novalidate>
+        <form method="GET" action="/search" novalidate data-hx-id="search-primitives-root">
           <label>
             Search
             <hx-slot value={props.searchInputHtml} />
           </label>
-          <hx-slot value={props.searchButtonHtml} />
+
+          <hx-slot value={props.searchSuggestionsHtml} />
+
+          <div class="toolbar">
+            <hx-slot value={props.searchButtonHtml} />
+            <hx-slot value={props.searchHelpTriggerHtml} />
+          </div>
+
+          <hx-slot value={props.searchHelpPopoverHtml} />
         </form>
       </section>
 

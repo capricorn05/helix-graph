@@ -36,6 +36,7 @@ export interface CompiledViewModuleSourceOptions {
   fileBasename: string;
   propsIdentifier: string;
   compiled: CompiledViewResult;
+  sourceModuleImportPath: string;
   bindingMapTypeImportPath: string;
   viewCompilerImportPath: string;
   bindingInference?: CompiledViewBindingInferenceOptions;
@@ -109,8 +110,10 @@ export function buildCompiledViewModuleSource(
   const viewPascal = toPascalCase(options.fileBasename);
   const viewCamel = toCamelCase(options.fileBasename);
   const artifactName = `${viewCamel}CompiledArtifact`;
+  const propsTypeName = `${viewPascal}CompiledViewProps`;
   const renderFnName = `render${viewPascal}CompiledView`;
   const bindingFnName = `build${viewPascal}CompiledBindingMap`;
+  const viewIdConstName = `${viewCamel}CompiledViewId`;
 
   const bindingInference = options.bindingInference;
   const inferActionId =
@@ -155,7 +158,7 @@ export function buildCompiledViewModuleSource(
       }
 
       shared.push(
-        `      evaluate: (${options.propsIdentifier}: any) => (${patch.expressionSource}),`,
+        `      evaluate: (${options.propsIdentifier}: ${propsTypeName}) => (${patch.expressionSource}),`,
       );
 
       return `    {\n${shared.join("\n")}\n    }`;
@@ -164,21 +167,34 @@ export function buildCompiledViewModuleSource(
 
   return `import type { BindingMap } from "${options.bindingMapTypeImportPath}";
 import {
+  compiledViewId,
+  defineCompiledViewArtifact,
   renderCompiledView,
+  serializeClientOnlyProps,
   type CompiledViewArtifact,
 } from "${options.viewCompilerImportPath}";
 
+export type ${propsTypeName} = Parameters<
+  typeof import("${options.sourceModuleImportPath}").default
+>[0];
+
 const compiledBindingMap: BindingMap = ${bindingMapSource};
 
-export const ${artifactName}: CompiledViewArtifact<any> = {
-  template: ${JSON.stringify(options.compiled.template)},
-  patches: [
+export const ${artifactName}: CompiledViewArtifact<${propsTypeName}> = defineCompiledViewArtifact<${propsTypeName}>(
+  compiledViewId(${JSON.stringify(options.fileBasename)}),
+  ${JSON.stringify(options.fileBasename)},
+  {
+    template: ${JSON.stringify(options.compiled.template)},
+    patches: [
 ${patchesSource}
-  ],
-  bindingMap: compiledBindingMap,
-};
+    ],
+    bindingMap: compiledBindingMap,
+  },
+);
 
-export function ${renderFnName}(${options.propsIdentifier}: any): string {
+export const ${viewIdConstName} = ${artifactName}.id;
+
+export function ${renderFnName}(${options.propsIdentifier}: ${propsTypeName}): string {
   return renderCompiledView(${artifactName}, ${options.propsIdentifier});
 }
 

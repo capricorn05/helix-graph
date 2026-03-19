@@ -13,7 +13,7 @@ This workspace contains a runnable TypeScript prototype of the Helix framework d
 
 ## Phase 2 (Virtualization + Devtools + Forms)
 
-- **Virtualization** (`VirtualList`, `VirtualGrid`) — windowed rendering for large tables/lists
+- **Virtualization** (`VirtualList`, `VirtualGrid`) — framework primitives for windowed rendering (implemented, not yet integrated in example app)
 - **DevTools** — in-page graph inspector + causality trace viewer (press `Ctrl+M` to toggle)
 - **Form Enhancement** — client-side validation, error patching, optimistic updates with rollback
 - example users app with paging, sorting, form validation, and real-time devtools traces
@@ -37,6 +37,19 @@ Health check: `http://localhost:4173/health`
 - Optional pre-commit automation: `npm run hooks:install`
 
 The installed pre-commit hook runs `npm run verify` automatically.
+
+## VS Code TypeScript navigation
+
+If `Ctrl+Click` / `Go to Definition` shows **No definition found**:
+
+1. Open Command Palette and run `TypeScript: Select TypeScript Version` → **Use Workspace Version**.
+2. Run `TypeScript: Restart TS Server`.
+3. Confirm the active file language mode is **TypeScript** (bottom-right status bar).
+4. In Extensions, make sure built-in **TypeScript and JavaScript Language Features** is enabled.
+
+Workspace defaults in this repo now pin the TS SDK (`.vscode/settings.json`) and include
+an editor-only TS project for `src/example/views-tsx/*.tsx` (`src/example/views-tsx/tsconfig.json`) so
+symbol navigation works consistently in both `.ts` and `.tsx` authoring files.
 
 ## Recommended rendering pattern
 
@@ -63,7 +76,7 @@ For the full walkthrough (including troubleshooting), see `END_TO_END_FRAMEWORK_
 4. Add/extend page handler logic in `src/example/handlers/pages.handler.ts`.
 5. Register route in `src/example/routes/index.ts`.
 6. If the page needs incremental updates, add a JSON endpoint in `src/example/handlers/api.handler.ts` and a client module in `src/example/client/*.ts`.
-7. If using `data-hx-bind`, export matching handlers from `src/example/client/actions.ts` and run `npm run gen:bindings`.
+7. If using `data-hx-bind`, export matching handlers from feature modules in `src/example/client/actions-*.ts` (re-exported by `src/example/client/actions.ts`) and run `npm run gen:bindings`.
 8. Validate with `npm run build` and `npm run test` (or `npm run verify` before push).
 
 ### Quick checklist for hybrid pages
@@ -72,6 +85,19 @@ For the full walkthrough (including troubleshooting), see `END_TO_END_FRAMEWORK_
 - Keep client updates scoped to stable `data-hx-id` targets.
 - Preserve URL state with `pushState` and handle `popstate`.
 - Prefer fallback to full navigation when JSON patching fails.
+
+### Binding id + handler convention
+
+- Binding ids are validated at generation time and must match `^[a-z][a-z0-9-]*$`.
+- Default handler export mapping is `data-hx-bind="save-user"` → `onSaveUser`.
+- App-level overrides (action id, handler name, preventDefault) live in `src/example/shared/client-action-metadata.ts`.
+- Event overrides are static-only: `data-hx-event="keydown"` on the same element as `data-hx-bind`.
+
+### TSX escape hatches (current)
+
+- `uncompiledView(() => expr)` emits an HTML patch slot for runtime HTML content.
+- `clientOnly(() => import("/client/chunk.js"), props)` emits a client-only placeholder and mounts after resume.
+- `data-hx-event` and binding ids are compile-time checked; dynamic values are rejected.
 
 ## Project layout
 
@@ -93,7 +119,8 @@ For the full walkthrough (including troubleshooting), see `END_TO_END_FRAMEWORK_
 - `src/helix/components/*` — reusable higher-level UI components built on top of `ui.ts`
 - `src/example/server.ts` — streaming SSR server + API/action endpoints
 - `src/example/client/bootstrap.ts` — tiny client delegator bootstrap
-- `src/example/client/actions.ts` — lazy-loaded handlers (paging/sort/form)
+- `src/example/client/actions-*.ts` — feature-scoped lazy-loaded handlers (`users`, `posts`, `external`, `navigation`, shared helpers)
+- `src/example/client/actions.ts` — barrel re-exports consumed by binding-map/runtime chunk resolution
 - `src/example/shared/*` — browser-safe modules shared by SSR wrappers and client chunks
 - `src/example/shared/client-action-metadata.ts` — app-level declarative client-action metadata manifest consumed by binding-map generation
 - `src/example/domain.ts` — in-memory users domain model
@@ -126,6 +153,55 @@ This lets pages preserve framework bindings/ids (`data-hx-*`) while still using 
 
 This keeps advanced table composition reusable while still rendering through the same Helix `uiTable` primitive.
 
+### Headless UI Primitives
+
+Ten framework-agnostic UI primitives with no React dependency:
+
+- **Dialog:** Modal overlay with focus trap, Escape dismiss, optional portal, configurable open display mode
+- **Popover:** Non-modal floating panel, positioned relative to trigger, Escape/outside dismiss
+- **Menu / Dropdown:** Floating action menus with roving focus and keyboard navigation (Arrow/Home/End)
+- **Tabs:** Inline tab interface with arrow-key navigation
+- **Tooltip:** Hover/focus-triggered floating hint layer
+- **Accordion:** Inline disclosure groups with keyboard navigation between triggers
+- **Toast:** Fixed viewport notifications with auto-dismiss support
+- **Select:** Button-triggered listbox with keyboard selection
+- **Combobox:** Input-driven listbox with client-side filtering
+
+All primitives provide:
+
+- **Dual state API:** `value` / `defaultValue` / `onChange` options plus Helix `Cell<T>` integration where applicable
+- **Full ARIA:** Proper roles, attributes, and relationships for accessibility
+- **Keyboard-first:** Keyboard navigation built-in; Escape always closes modal layers
+- **Framework-free:** Pure TypeScript, no React, uses direct DOM APIs
+- **Compiler-aware bindings:** `data-hx-bind` can opt into non-click events with compile-time `data-hx-event`
+
+**Example app integrations:**
+
+- `/primitives` — full interactive showcase for dialog, popover, menu, dropdown, tabs, tooltip, accordion, toast, select, and combobox
+- `/search` — combobox suggestions + help popover
+- `/settings` — select replacement for page-size + help tooltip
+- Primitive controllers are mounted in `src/example/client/primitives-demo.ts` and re-initialized after fragment navigation
+
+**Usage example (dialog):**
+
+```typescript
+import { createDialogController } from "@helix/primitives";
+
+const trigger = document.querySelector("#open-btn");
+const content = document.querySelector("#dialog-content");
+
+const dialog = createDialogController(trigger, content, {
+  defaultValue: false,
+  onChange: (isOpen) => console.log("Dialog", isOpen),
+  openDisplay: "flex",
+});
+
+// Later:
+dialog.open();
+dialog.close();
+dialog.toggle();
+```
+
 ## Phase 2 Features in Action
 
 ### DevTools Inspector
@@ -137,7 +213,9 @@ Press `Ctrl+M` in the browser to toggle the in-page inspector panel:
 
 ### Virtualization (VirtualList / VirtualGrid)
 
-For large lists/tables, use `VirtualList` to window the DOM:
+**Framework primitive for future use**: `VirtualList` and `VirtualGrid` are implemented in `src/helix/virtualization.ts` and available for windowing large DOM trees. They are not yet integrated into the example app.
+
+Example API usage:
 
 ```ts
 import { VirtualList } from "./helix/virtualization.js";
@@ -154,6 +232,8 @@ const vlist = new VirtualList({
 
 vlist.setTotalCount(10000); // tells VirtualList how many items there are
 ```
+
+**Integration roadmap**: Future versions will automatically wire virtualization into `reconcileKeyed()` for large table/list renders, coordinating with the patch scheduler for smooth scrolling.
 
 ### Form Validation
 
@@ -182,7 +262,7 @@ const form = new HelixForm(document.getElementById("user-form"), {
 The admin nav now includes **New Post** (`/posts/new`) with a server-backed create form.
 
 - Form binding: `data-hx-bind="create-post"`
-- Client handler: `onCreatePost` in `src/example/client/actions.ts`
+- Client handler: `onCreatePost` in `src/example/client/actions-navigation.ts` (re-exported by `src/example/client/actions.ts`)
 - Server endpoint: `POST /actions/create-post`
 - Validation: `validateCreatePostInput` in `src/example/utils/http.ts`
 - Data write path: `createPostAction` → `createPost` in `src/example/resources/posts.resource.ts`

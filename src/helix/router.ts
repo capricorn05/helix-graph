@@ -40,6 +40,7 @@ export interface RouteContext<P extends RouteParams = RouteParams> {
   request: IncomingMessage;
   response: ServerResponse;
   url: URL;
+  routeId: string;
   params: P;
   searchParams: URLSearchParams;
 }
@@ -352,6 +353,7 @@ export function createRouter(
           request,
           response,
           url,
+          routeId: route.definition.id,
           params: params as Parameters<
             typeof route.definition.handler
           >[0]["params"],

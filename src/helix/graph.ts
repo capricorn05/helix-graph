@@ -26,6 +26,14 @@ export class UnifiedGraph {
     return this.nodes.get(id);
   }
 
+  hasNode(id: string): boolean {
+    return this.nodes.has(id);
+  }
+
+  hasEdge(id: string): boolean {
+    return this.edges.has(id);
+  }
+
   getDependents(nodeId: string): GraphNode[] {
     const edgeIds = this.outgoing.get(nodeId);
     if (!edgeIds) {
@@ -69,7 +77,7 @@ export class UnifiedGraph {
   toJSON(): { nodes: GraphNode[]; edges: GraphEdge[] } {
     return {
       nodes: Array.from(this.nodes.values()),
-      edges: Array.from(this.edges.values())
+      edges: Array.from(this.edges.values()),
     };
   }
 
@@ -86,12 +94,67 @@ export class UnifiedGraph {
   get size(): number {
     return this.nodes.size;
   }
+
+  clear(): void {
+    this.nodes.clear();
+    this.edges.clear();
+    this.outgoing.clear();
+    this.incoming.clear();
+  }
 }
 
 let globalNodeCounter = 0;
 let globalEdgeCounter = 0;
 
 export const runtimeGraph = new UnifiedGraph();
+
+function stableEdgeId(
+  type: GraphEdge["type"],
+  from: string,
+  to: string,
+): string {
+  return `${type}:${from}->${to}`;
+}
+
+export function connectRouteToView(routeId: string, viewId: string): void {
+  runtimeGraph.addEdge({
+    id: stableEdgeId("renders", routeId, viewId),
+    from: routeId,
+    to: viewId,
+    type: "renders",
+  });
+}
+
+export function connectViewToResource(
+  viewId: string,
+  resourceId: string,
+): void {
+  runtimeGraph.addEdge({
+    id: stableEdgeId("dependsOn", resourceId, viewId),
+    from: resourceId,
+    to: viewId,
+    type: "dependsOn",
+  });
+}
+
+export function connectRouteViewResources(
+  routeId: string,
+  viewIds: readonly string[],
+  resourceIds: readonly string[],
+): void {
+  for (const viewId of viewIds) {
+    connectRouteToView(routeId, viewId);
+    for (const resourceId of resourceIds) {
+      connectViewToResource(viewId, resourceId);
+    }
+  }
+}
+
+export function resetRuntimeGraph(): void {
+  runtimeGraph.clear();
+  globalNodeCounter = 0;
+  globalEdgeCounter = 0;
+}
 
 export function nextNodeId(prefix: string): string {
   globalNodeCounter += 1;

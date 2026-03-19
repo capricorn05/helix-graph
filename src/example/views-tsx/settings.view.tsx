@@ -1,6 +1,8 @@
 export interface SettingsPageProps {
   autoActivateInputHtml: string;
-  pageSizeSelectHtml: string;
+  pageSizeControlHtml: string;
+  pageSizeHelpTriggerHtml: string;
+  pageSizeHelpTooltipHtml: string;
 }
 
 export default function SettingsPageView(props: SettingsPageProps) {
@@ -8,7 +10,7 @@ export default function SettingsPageView(props: SettingsPageProps) {
     <>
       <p>Configure application settings and preferences.</p>
 
-      <section>
+      <section data-hx-id="settings-primitives-root">
         <h2>User Management Settings</h2>
         <form method="POST" action="/settings" novalidate>
           <label>
@@ -17,8 +19,15 @@ export default function SettingsPageView(props: SettingsPageProps) {
           </label>
           <label>
             Max users per page
-            <hx-slot value={props.pageSizeSelectHtml} />
+            <hx-slot value={props.pageSizeControlHtml} />
           </label>
+          <div class="toolbar">
+            <hx-slot value={props.pageSizeHelpTriggerHtml} />
+          </div>
+          <hx-slot value={props.pageSizeHelpTooltipHtml} />
+          <p data-hx-id="settings-page-size-status">
+            Selected page size: 6 (read-only in demo mode)
+          </p>
           <p style="opacity: 0.6; font-size: 0.9rem;">
             Note: These settings are read-only in demo mode.
           </p>

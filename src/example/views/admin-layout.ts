@@ -9,6 +9,7 @@ const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { href: "/", label: "Users" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/reports", label: "Reports" },
+  { href: "/primitives", label: "Primitives" },
   { href: "/interactions", label: "Interactions" },
   { href: "/external-grid", label: "External Grid" },
   { href: "/external-data", label: "External Data" },

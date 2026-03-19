@@ -14,6 +14,7 @@ import {
   handleSearch,
   handleReports,
   handleInteractions,
+  handlePrimitives,
   handleExternalGrid,
   handlePosts,
   handlePostsNew,
@@ -64,6 +65,7 @@ const interactionsRoute = defineRoute(
   "/interactions",
   handleInteractions,
 );
+const primitivesRoute = defineRoute("GET", "/primitives", handlePrimitives);
 const externalGridRoute = defineRoute(
   "GET",
   "/external-grid",
@@ -168,6 +170,7 @@ export const router = createRouter([
   aboutRoute,
   searchRoute,
   reportsRoute,
+  primitivesRoute,
   interactionsRoute,
   externalGridRoute,
   externalDataRoute,

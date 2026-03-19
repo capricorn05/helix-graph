@@ -1,7 +1,33 @@
 import path from "node:path";
 import ts from "typescript";
 
-export type BindingEvent = "click" | "submit";
+/**
+ * The DOM event type wired for a `data-hx-bind` binding.
+ *
+ * `click` and `submit` are inferred automatically from element type.
+ * All other values must be set explicitly via `data-hx-event="<event>"` on the
+ * same element as `data-hx-bind`.
+ */
+export type BindingEvent =
+  | "click"
+  | "submit"
+  | "keydown"
+  | "keyup"
+  | "keypress"
+  | "focus"
+  | "blur"
+  | "focusin"
+  | "focusout"
+  | "change"
+  | "input"
+  | "pointerdown"
+  | "pointerup"
+  | "pointermove"
+  | "mousedown"
+  | "mouseup"
+  | "mousemove"
+  | "mouseenter"
+  | "mouseleave";
 export type PatchKind = "text" | "attr" | "html";
 
 export interface PatchDescriptor {
@@ -202,6 +228,14 @@ function validateDynamicAttributeExpression(
       "Dynamic data-hx-bind values are not supported in compiled views",
     );
   }
+
+  if (attrName === "data-hx-event") {
+    throwCompileError(
+      state.sourceFile,
+      expression,
+      "Dynamic data-hx-event values are not supported in compiled views. Use a string literal event name",
+    );
+  }
 }
 
 function nextTargetId(state: CompileState): string {
@@ -285,6 +319,228 @@ function expressionSourceOrThrow(
   return expression.getText(sourceFile).trim();
 }
 
+function isNamedCallExpression(
+  expression: ts.Expression,
+  name: string,
+): expression is ts.CallExpression {
+  const unwrapped = unwrapParenthesizedExpression(expression);
+  return ts.isCallExpression(unwrapped) && ts.isIdentifier(unwrapped.expression)
+    ? unwrapped.expression.text === name
+    : false;
+}
+
+function extractFactoryReturnExpression(
+  state: CompileState,
+  helperName: string,
+  expression: ts.Expression,
+): ts.Expression {
+  const candidate = unwrapParenthesizedExpression(expression);
+
+  if (ts.isArrowFunction(candidate)) {
+    if (candidate.parameters.length > 0) {
+      throwCompileError(
+        state.sourceFile,
+        candidate,
+        `${helperName}() loader functions cannot accept parameters`,
+      );
+    }
+
+    if (ts.isBlock(candidate.body)) {
+      const returnStatement = candidate.body.statements.find(
+        (statement): statement is ts.ReturnStatement =>
+          ts.isReturnStatement(statement) && Boolean(statement.expression),
+      );
+
+      if (!returnStatement?.expression) {
+        throwCompileError(
+          state.sourceFile,
+          candidate,
+          `${helperName}() requires a return expression`,
+        );
+      }
+
+      return unwrapParenthesizedExpression(returnStatement.expression);
+    }
+
+    return unwrapParenthesizedExpression(candidate.body);
+  }
+
+  if (ts.isFunctionExpression(candidate)) {
+    if (candidate.parameters.length > 0) {
+      throwCompileError(
+        state.sourceFile,
+        candidate,
+        `${helperName}() loader functions cannot accept parameters`,
+      );
+    }
+
+    const returnStatement = candidate.body.statements.find(
+      (statement): statement is ts.ReturnStatement =>
+        ts.isReturnStatement(statement) && Boolean(statement.expression),
+    );
+
+    if (!returnStatement?.expression) {
+      throwCompileError(
+        state.sourceFile,
+        candidate,
+        `${helperName}() requires a return expression`,
+      );
+    }
+
+    return unwrapParenthesizedExpression(returnStatement.expression);
+  }
+
+  throwCompileError(
+    state.sourceFile,
+    expression,
+    `${helperName}() requires a function expression`,
+  );
+}
+
+function extractClientOnlyModuleSpecifier(
+  state: CompileState,
+  expression: ts.Expression,
+): string {
+  const returned = extractFactoryReturnExpression(
+    state,
+    "clientOnly",
+    expression,
+  );
+
+  if (
+    !ts.isCallExpression(returned) ||
+    returned.expression.kind !== ts.SyntaxKind.ImportKeyword ||
+    returned.arguments.length !== 1
+  ) {
+    throwCompileError(
+      state.sourceFile,
+      expression,
+      'clientOnly() requires a loader like () => import("./widget.js")',
+    );
+  }
+
+  const [specifier] = returned.arguments;
+  if (
+    !specifier ||
+    (!ts.isStringLiteral(specifier) &&
+      !ts.isNoSubstitutionTemplateLiteral(specifier))
+  ) {
+    throwCompileError(
+      state.sourceFile,
+      specifier ?? returned,
+      "clientOnly() import specifier must be a string literal",
+    );
+  }
+
+  return specifier.text;
+}
+
+function compileUncompiledViewExpression(
+  state: CompileState,
+  expression: ts.CallExpression,
+): string {
+  const [factory] = expression.arguments;
+  if (!factory) {
+    throwCompileError(
+      state.sourceFile,
+      expression,
+      "uncompiledView() requires a factory function",
+    );
+  }
+
+  const returned = extractFactoryReturnExpression(
+    state,
+    "uncompiledView",
+    factory,
+  );
+  if (expressionContainsJsx(returned)) {
+    throwCompileError(
+      state.sourceFile,
+      returned,
+      "uncompiledView() must return HTML or another render function result, not raw JSX",
+    );
+  }
+
+  const targetId = nextTargetId(state);
+  const token = nextToken(state, "html", targetId);
+  const expressionSource = expressionSourceOrThrow(state.sourceFile, returned);
+
+  state.patches.push({
+    kind: "html",
+    token,
+    targetId,
+    expressionSource,
+  });
+
+  return token;
+}
+
+function validateClientOnlyPropsExpression(
+  state: CompileState,
+  expression: ts.Expression,
+): void {
+  if (
+    ts.isArrowFunction(expression) ||
+    ts.isFunctionExpression(expression) ||
+    expressionContainsJsx(expression)
+  ) {
+    throwCompileError(
+      state.sourceFile,
+      expression,
+      "clientOnly() props must be JSON-serializable values, not functions or JSX",
+    );
+  }
+}
+
+function compileClientOnlyExpression(
+  state: CompileState,
+  expression: ts.CallExpression,
+): string {
+  const [loaderExpression, propsExpression] = expression.arguments;
+  if (!loaderExpression) {
+    throwCompileError(
+      state.sourceFile,
+      expression,
+      "clientOnly() requires a loader function",
+    );
+  }
+
+  if (expression.arguments.length > 2) {
+    throwCompileError(
+      state.sourceFile,
+      expression,
+      "clientOnly() currently supports only loader and props arguments",
+    );
+  }
+
+  const moduleSpecifier = extractClientOnlyModuleSpecifier(
+    state,
+    loaderExpression,
+  );
+  const targetId = nextTargetId(state);
+  const renderedAttrs = [
+    `data-hx-client-only="${escapeHtml(targetId)}"`,
+    `data-hx-client-module="${escapeHtml(moduleSpecifier)}"`,
+    `data-hx-id="${escapeHtml(targetId)}"`,
+  ];
+
+  if (propsExpression) {
+    validateClientOnlyPropsExpression(state, propsExpression);
+    const token = nextToken(state, "attr", targetId, "data-hx-client-props");
+    const expressionSource = `serializeClientOnlyProps(${expressionSourceOrThrow(state.sourceFile, propsExpression)})`;
+    state.patches.push({
+      kind: "attr",
+      token,
+      targetId,
+      attrName: "data-hx-client-props",
+      expressionSource,
+    });
+    renderedAttrs.push(`data-hx-client-props="${token}"`);
+  }
+
+  return `<div ${renderedAttrs.join(" ")}></div>`;
+}
+
 function renderAttributes(
   state: CompileState,
   tagName: string,
@@ -293,6 +549,21 @@ function renderAttributes(
   const rendered: string[] = [];
   let targetId: string | null = null;
   let hasRenderedDataHxId = false;
+
+  // Pre-scan: collect an explicit data-hx-event override on this element.
+  // This allows any event type to be wired for a data-hx-bind binding, e.g.:
+  //   <input data-hx-event="keydown" data-hx-bind="my-handler" />
+  let eventOverride: BindingEvent | null = null;
+  for (const prop of attributes.properties) {
+    if (
+      ts.isJsxAttribute(prop) &&
+      prop.initializer !== undefined &&
+      ts.isStringLiteral(prop.initializer) &&
+      normalizeAttrName(jsxAttributeNameText(prop.name)) === "data-hx-event"
+    ) {
+      eventOverride = prop.initializer.text as BindingEvent;
+    }
+  }
 
   for (const property of attributes.properties) {
     if (ts.isJsxSpreadAttribute(property)) {
@@ -306,6 +577,23 @@ function renderAttributes(
     const rawAttrName = jsxAttributeNameText(property.name);
     const attrName = normalizeAttrName(rawAttrName);
     const initializer = property.initializer;
+
+    // data-hx-event is a compile-time directive; strip it from HTML output.
+    // If it has a dynamic (JSX expression) value, reject it first.
+    if (attrName === "data-hx-event") {
+      if (
+        initializer &&
+        ts.isJsxExpression(initializer) &&
+        initializer.expression
+      ) {
+        validateDynamicAttributeExpression(
+          state,
+          attrName,
+          initializer.expression,
+        );
+      }
+      continue;
+    }
 
     if (!initializer) {
       rendered.push(`${attrName}`);
@@ -324,7 +612,8 @@ function renderAttributes(
 
       if (attrName === "data-hx-bind") {
         const event: BindingEvent =
-          tagName.toLowerCase() === "form" ? "submit" : "click";
+          eventOverride ??
+          (tagName.toLowerCase() === "form" ? "submit" : "click");
         registerBinding(state, value, event, initializer);
       }
 
@@ -400,13 +689,22 @@ function compileJsxChild(state: CompileState, child: ts.JsxChild): string {
       return "";
     }
 
-    validateDynamicTextExpression(state, child.expression);
+    const expression = unwrapParenthesizedExpression(child.expression);
+    if (isNamedCallExpression(expression, "uncompiledView")) {
+      return compileUncompiledViewExpression(state, expression);
+    }
+
+    if (isNamedCallExpression(expression, "clientOnly")) {
+      return compileClientOnlyExpression(state, expression);
+    }
+
+    validateDynamicTextExpression(state, expression);
 
     const targetId = nextTargetId(state);
     const token = nextToken(state, "text", targetId);
     const expressionSource = expressionSourceOrThrow(
       state.sourceFile,
-      child.expression,
+      expression,
     );
 
     state.patches.push({

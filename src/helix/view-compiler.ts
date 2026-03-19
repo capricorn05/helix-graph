@@ -1,4 +1,5 @@
 import { escapeHtml } from "./html.js";
+import { runtimeGraph } from "./graph.js";
 import type { BindingMap } from "./types.js";
 
 export interface CompiledTextPatch<Props> {
@@ -29,6 +30,8 @@ export type CompiledViewPatch<Props> =
   | CompiledHtmlPatch<Props>;
 
 export interface CompiledViewArtifact<Props> {
+  id?: string;
+  label?: string;
   template: string;
   patches: readonly CompiledViewPatch<Props>[];
   bindingMap: BindingMap;
@@ -58,6 +61,56 @@ function normalizeRenderedValue(value: unknown): string {
   }
 
   return String(value);
+}
+
+export function compiledViewId(fileBasename: string): string {
+  return `view:compiled:${fileBasename}`;
+}
+
+export function defineCompiledViewArtifact<Props>(
+  id: string,
+  label: string,
+  artifact: Omit<CompiledViewArtifact<Props>, "id" | "label">,
+): CompiledViewArtifact<Props> {
+  runtimeGraph.addNode({
+    id,
+    type: "ViewNode",
+    label,
+    meta: {
+      compiled: true,
+    },
+  });
+
+  return {
+    id,
+    label,
+    ...artifact,
+  };
+}
+
+export function serializeClientOnlyProps(value: unknown): string {
+  if (value === undefined) {
+    return "";
+  }
+
+  try {
+    return JSON.stringify(value);
+  } catch (error) {
+    throw new Error(
+      `clientOnly props must be JSON-serializable: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+export function uncompiledView<T>(factory: () => T): T {
+  return factory();
+}
+
+export function clientOnly<TProps = unknown>(
+  _loader: () => Promise<unknown>,
+  _props?: TProps,
+): string {
+  return "";
 }
 
 function prepareCompiledViewArtifact<Props>(

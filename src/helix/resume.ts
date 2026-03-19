@@ -38,6 +38,12 @@ type HandlerFunction<
   ctx: HelixClientHandlerContext<TRuntime, TBinding>,
 ) => Promise<void> | void;
 
+type ClientOnlyMountFunction<TRuntime> = (ctx: {
+  element: HTMLElement;
+  props: unknown;
+  runtime: TRuntime;
+}) => Promise<void> | void;
+
 export interface DelegatorOptions {
   root?: Document | HTMLElement;
   bindingSelector?: string;
@@ -60,6 +66,8 @@ export interface ResumeClientOptions<TRuntime extends ResumableRuntimeBase> {
   delegatorOptions?: DelegatorOptions;
 }
 
+const mountedClientOnlyElements = new WeakSet<HTMLElement>();
+
 export function readJsonScript<T>(id: string, root: ParentNode = document): T {
   const script = root.querySelector(`#${id}`);
   if (!(script instanceof HTMLScriptElement)) {
@@ -72,6 +80,130 @@ export function readJsonScript<T>(id: string, root: ParentNode = document): T {
   }
 
   return JSON.parse(text) as T;
+}
+
+function scheduleIdleMount(callback: () => void): void {
+  const idleScheduler = (
+    globalThis as typeof globalThis & {
+      requestIdleCallback?: (fn: () => void) => number;
+    }
+  ).requestIdleCallback;
+
+  if (typeof idleScheduler === "function") {
+    idleScheduler(callback);
+    return;
+  }
+
+  setTimeout(callback, 0);
+}
+
+function readClientOnlyProps(element: HTMLElement): unknown {
+  const raw = element.dataset.hxClientProps;
+  if (!raw) {
+    return undefined;
+  }
+
+  return JSON.parse(raw);
+}
+
+async function mountClientOnlyElement<TRuntime>(
+  element: HTMLElement,
+  runtime: TRuntime,
+  importModule: ModuleLoader,
+): Promise<void> {
+  if (mountedClientOnlyElements.has(element)) {
+    return;
+  }
+
+  const chunk = element.dataset.hxClientModule;
+  if (!chunk) {
+    throw new Error("clientOnly placeholder is missing data-hx-client-module");
+  }
+
+  const loadedChunk = await importModule(chunk);
+  const mount = (loadedChunk.mount ?? loadedChunk.default) as
+    | ClientOnlyMountFunction<TRuntime>
+    | undefined;
+
+  if (typeof mount !== "function") {
+    throw new Error(
+      `Missing clientOnly mount export from ${chunk}. Expected \`mount\` or default export`,
+    );
+  }
+
+  const props = readClientOnlyProps(element);
+  await mount({
+    element,
+    props,
+    runtime,
+  });
+
+  mountedClientOnlyElements.add(element);
+  element.dataset.hxClientMounted = "true";
+}
+
+function installClientOnlyMounts<TRuntime>(
+  runtime: TRuntime,
+  options: DelegatorOptions = {},
+): void {
+  const root = options.root ?? document;
+  const importModule =
+    options.importModule ??
+    ((chunk: string) => import(chunk) as Promise<Record<string, unknown>>);
+
+  const scheduleMount = (element: HTMLElement): void => {
+    if (mountedClientOnlyElements.has(element)) {
+      return;
+    }
+
+    scheduleIdleMount(() => {
+      void mountClientOnlyElement(element, runtime, importModule).catch(
+        (error: unknown) => {
+          console.error("[Helix] clientOnly mount error", error);
+        },
+      );
+    });
+  };
+
+  for (const element of root.querySelectorAll<HTMLElement>(
+    "[data-hx-client-only]",
+  )) {
+    scheduleMount(element);
+  }
+
+  if (typeof MutationObserver === "undefined") {
+    return;
+  }
+
+  const observerRoot = root instanceof Document ? root.body : root;
+  if (!(observerRoot instanceof Node)) {
+    return;
+  }
+
+  const observer = new MutationObserver((entries) => {
+    for (const entry of entries) {
+      for (const addedNode of entry.addedNodes) {
+        if (!(addedNode instanceof HTMLElement)) {
+          continue;
+        }
+
+        if (addedNode.matches("[data-hx-client-only]")) {
+          scheduleMount(addedNode);
+        }
+
+        for (const island of addedNode.querySelectorAll<HTMLElement>(
+          "[data-hx-client-only]",
+        )) {
+          scheduleMount(island);
+        }
+      }
+    }
+  });
+
+  observer.observe(observerRoot, {
+    childList: true,
+    subtree: true,
+  });
 }
 
 export function hydrateRuntimeGraph(snapshot: GraphSnapshot): void {
@@ -193,5 +325,6 @@ export function resumeClientApp<TRuntime extends ResumableRuntimeBase>(
   }
 
   installBindingDelegator(bindings, runtime, options.delegatorOptions);
+  installClientOnlyMounts(runtime, options.delegatorOptions);
   return runtime;
 }

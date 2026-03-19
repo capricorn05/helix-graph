@@ -1,11 +1,36 @@
 import ts from "typescript";
 
-export type BindingEvent = "click" | "submit";
+/**
+ * The DOM event type wired for a `data-hx-bind` binding.
+ * Must stay in sync with the same type in tsx-view-compiler.ts.
+ */
+export type BindingEvent =
+  | "click"
+  | "submit"
+  | "keydown"
+  | "keyup"
+  | "keypress"
+  | "focus"
+  | "blur"
+  | "focusin"
+  | "focusout"
+  | "change"
+  | "input"
+  | "pointerdown"
+  | "pointerup"
+  | "pointermove"
+  | "mousedown"
+  | "mouseup"
+  | "mousemove"
+  | "mouseenter"
+  | "mouseleave";
 
 export interface BindingRecord {
   id: string;
   event: BindingEvent;
 }
+
+const BINDING_ID_PATTERN = /^[a-z][a-z0-9-]*$/i;
 
 function hasExportModifier(node: ts.Node): boolean {
   const modifiers = ts.canHaveModifiers(node)
@@ -69,6 +94,12 @@ function addBindingRecord(
     return;
   }
 
+  if (!BINDING_ID_PATTERN.test(id)) {
+    throw new Error(
+      `Invalid binding id "${id}" discovered at ${sourceLabel}. Use alphanumeric and hyphen characters only`,
+    );
+  }
+
   const existing = bindings.get(id);
   if (existing && existing !== event) {
     throw new Error(
@@ -84,13 +115,28 @@ function collectBindingsFromHtmlLiteral(
   sourceLabel: string,
   bindings: Map<string, BindingEvent>,
 ): void {
-  const explicitBindingRegex =
-    /<([a-zA-Z][\w:-]*)\b[^>]*\bdata-hx-bind="([^"]+)"/g;
+  // Match full opening tags so we can inspect all attributes regardless of order.
+  const tagWithBindRegex = /<([a-zA-Z][\w:-]*)\b([^>]*)>/g;
 
-  for (const match of literalText.matchAll(explicitBindingRegex)) {
+  for (const match of literalText.matchAll(tagWithBindRegex)) {
     const tag = match[1]?.toLowerCase() ?? "";
-    const id = match[2] ?? "";
-    const event: BindingEvent = tag === "form" ? "submit" : "click";
+    const allAttrs = match[2] ?? "";
+
+    const bindMatch = /data-hx-bind="([^"]+)"/.exec(allAttrs);
+    if (!bindMatch) {
+      continue;
+    }
+    const id = bindMatch[1] ?? "";
+
+    // Check for an explicit data-hx-event attribute anywhere in the tag opening
+    const eventOverrideMatch = /data-hx-event="([^"]+)"/.exec(allAttrs);
+    let event: BindingEvent;
+    if (eventOverrideMatch) {
+      event = eventOverrideMatch[1] as BindingEvent;
+    } else {
+      event = tag === "form" ? "submit" : "click";
+    }
+
     addBindingRecord(bindings, id, event, sourceLabel);
   }
 }

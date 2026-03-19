@@ -1,4 +1,9 @@
-import { createGraphSnapshot, streamHtmlSegments } from "../../helix/index.js";
+import {
+  compiledViewId,
+  connectRouteViewResources,
+  createGraphSnapshot,
+  streamHtmlSegments,
+} from "../../helix/index.js";
 import type { RouteContext } from "../../helix/index.js";
 import { usersPageResource } from "../resources/users.resource.js";
 import {
@@ -28,6 +33,7 @@ import {
   buildAppBindingMap,
   renderUsersLivePanel,
   renderUsersPageContent,
+  usersPageView,
   type UsersPanelKind,
 } from "../views/users.view.js";
 import { renderAdminLayout } from "../views/admin-layout.js";
@@ -37,6 +43,7 @@ import { renderPostsCreatePage } from "../views/posts-create.js";
 import { renderInteractionsPage } from "../views/interactions.js";
 import { renderExternalGridPage } from "../views/external-grid.js";
 import { renderHostListingsPage } from "../views/host-listings.js";
+import { renderPrimitivesPage } from "../views/primitives.js";
 
 const appBindingMap = buildAppBindingMap();
 
@@ -44,6 +51,8 @@ interface AdminCoreView {
   title: string;
   content: string;
   snapshotCells: Record<string, unknown>;
+  viewIds: string[];
+  resourceIds: string[];
 }
 
 function parseUsersPanelKind(value: string | null): UsersPanelKind {
@@ -76,6 +85,8 @@ async function renderAdminCoreForUrl(url: URL): Promise<AdminCoreView | null> {
       title: "External Grid",
       content: renderExternalGridPage(productsPage),
       snapshotCells: {},
+      viewIds: [compiledViewId("external-grid")],
+      resourceIds: [externalProductsResource.id],
     };
   }
 
@@ -84,6 +95,18 @@ async function renderAdminCoreForUrl(url: URL): Promise<AdminCoreView | null> {
       title: "Interactions",
       content: renderInteractionsPage(),
       snapshotCells: {},
+      viewIds: [compiledViewId("interactions")],
+      resourceIds: [],
+    };
+  }
+
+  if (url.pathname === "/primitives") {
+    return {
+      title: "Primitives",
+      content: renderPrimitivesPage(),
+      snapshotCells: {},
+      viewIds: [compiledViewId("primitives")],
+      resourceIds: [],
     };
   }
 
@@ -92,6 +115,8 @@ async function renderAdminCoreForUrl(url: URL): Promise<AdminCoreView | null> {
       title: "Create Post",
       content: renderPostsCreatePage(),
       snapshotCells: {},
+      viewIds: [compiledViewId("posts-create")],
+      resourceIds: [],
     };
   }
 
@@ -112,6 +137,8 @@ async function renderAdminCoreForUrl(url: URL): Promise<AdminCoreView | null> {
           totalPages: postsPage.totalPages,
         },
       },
+      viewIds: [compiledViewId("posts")],
+      resourceIds: [postsResource.id],
     };
   }
   if (url.pathname === "/") {
@@ -128,6 +155,8 @@ async function renderAdminCoreForUrl(url: URL): Promise<AdminCoreView | null> {
         sortCol: usersPage.sortCol,
         sortDir: usersPage.sortDir,
       },
+      viewIds: [compiledViewId("users-page-content"), usersPageView.id],
+      resourceIds: [usersPageResource.id],
     };
   }
 
@@ -137,6 +166,8 @@ async function renderAdminCoreForUrl(url: URL): Promise<AdminCoreView | null> {
       title: "Dashboard",
       content: renderDashboardPage(stats),
       snapshotCells: { stats },
+      viewIds: [compiledViewId("dashboard")],
+      resourceIds: [],
     };
   }
 
@@ -146,6 +177,8 @@ async function renderAdminCoreForUrl(url: URL): Promise<AdminCoreView | null> {
       title: "Reports",
       content: renderReportsPage(usersPage),
       snapshotCells: { usersPage },
+      viewIds: [compiledViewId("reports"), compiledViewId("reports-summary")],
+      resourceIds: [usersPageResource.id],
     };
   }
 
@@ -165,6 +198,8 @@ async function renderAdminCoreForUrl(url: URL): Promise<AdminCoreView | null> {
           totalPages: productsPage.totalPages,
         },
       },
+      viewIds: [compiledViewId("external-products")],
+      resourceIds: [externalProductsResource.id],
     };
   }
 
@@ -185,6 +220,8 @@ async function renderAdminCoreForUrl(url: URL): Promise<AdminCoreView | null> {
           totalPages: productsPage.totalPages,
         },
       },
+      viewIds: [compiledViewId("external-products-rich")],
+      resourceIds: [externalProductsResource.id],
     };
   }
 
@@ -205,6 +242,8 @@ async function renderAdminCoreForUrl(url: URL): Promise<AdminCoreView | null> {
           totalPages: productsPage.totalPages,
         },
       },
+      viewIds: [compiledViewId("host-listings")],
+      resourceIds: [externalProductsResource.id],
     };
   }
 
@@ -213,6 +252,8 @@ async function renderAdminCoreForUrl(url: URL): Promise<AdminCoreView | null> {
       title: "Search",
       content: renderSearchPage(),
       snapshotCells: {},
+      viewIds: [compiledViewId("search")],
+      resourceIds: [],
     };
   }
 
@@ -221,6 +262,8 @@ async function renderAdminCoreForUrl(url: URL): Promise<AdminCoreView | null> {
       title: "Settings",
       content: renderSettingsPage(),
       snapshotCells: {},
+      viewIds: [compiledViewId("settings")],
+      resourceIds: [],
     };
   }
 
@@ -229,6 +272,8 @@ async function renderAdminCoreForUrl(url: URL): Promise<AdminCoreView | null> {
       title: "About",
       content: renderAboutPage(),
       snapshotCells: {},
+      viewIds: [compiledViewId("about")],
+      resourceIds: [],
     };
   }
 
@@ -239,6 +284,8 @@ async function sendAdminPage(
   ctx: RouteContext,
   view: AdminCoreView,
 ): Promise<void> {
+  connectRouteViewResources(ctx.routeId, view.viewIds, view.resourceIds);
+
   const snapshot = createGraphSnapshot(view.snapshotCells, {
     includeGraph: false,
   });
@@ -280,6 +327,7 @@ export const handleReports = handleAdminPageRoute;
 export const handleExternalData = handleAdminPageRoute;
 export const handleExternalDataRich = handleAdminPageRoute;
 export const handleHostListings = handleAdminPageRoute;
+export const handlePrimitives = handleAdminPageRoute;
 
 export async function handleAppCoreComponent(ctx: RouteContext): Promise<void> {
   const targetUrl = parseCoreTargetUrl(
@@ -302,6 +350,7 @@ export async function handleAppCoreComponent(ctx: RouteContext): Promise<void> {
   ctx.response.statusCode = 200;
   ctx.response.setHeader("content-type", "text/html; charset=utf-8");
   ctx.response.setHeader("x-helix-title", view.title);
+  connectRouteViewResources(ctx.routeId, view.viewIds, view.resourceIds);
   await streamHtmlSegments(ctx.response, [view.content]);
   ctx.response.end();
 }
@@ -317,6 +366,12 @@ export async function handleUsersPanelComponent(
       createExternalProductsQuery(EXTERNAL_PRODUCTS_PAGE_SIZE, {
         page: externalPage,
       }),
+    );
+
+    connectRouteViewResources(
+      ctx.routeId,
+      [compiledViewId("external-products-component")],
+      [externalProductsResource.id],
     );
 
     ctx.response.statusCode = 200;

@@ -33,6 +33,12 @@ export interface RunCompiledViewCodegenResult {
   removedCount: number;
 }
 
+function toImportPath(fromFilePath: string, toFilePath: string): string {
+  const relativePath = path.relative(path.dirname(fromFilePath), toFilePath);
+  const normalized = relativePath.split(path.sep).join("/");
+  return normalized.startsWith(".") ? normalized : `./${normalized}`;
+}
+
 export async function runCompiledViewCodegen(
   options: RunCompiledViewCodegenOptions,
 ): Promise<RunCompiledViewCodegenResult> {
@@ -54,11 +60,17 @@ export async function runCompiledViewCodegen(
       sourcePath,
       source,
     );
+    const outputPath = path.join(options.outputRoot, `${basename}.compiled.ts`);
+    const sourceModuleImportPath = toImportPath(outputPath, sourcePath).replace(
+      /\.tsx$/,
+      ".js",
+    );
 
     const outputContent = buildCompiledViewModuleSource({
       fileBasename: basename,
       propsIdentifier,
       compiled,
+      sourceModuleImportPath,
       bindingMapTypeImportPath: options.bindingMapTypeImportPath,
       viewCompilerImportPath: options.viewCompilerImportPath,
       bindingInference: {
@@ -66,7 +78,6 @@ export async function runCompiledViewCodegen(
       },
     });
 
-    const outputPath = path.join(options.outputRoot, `${basename}.compiled.ts`);
     expectedOutputFiles.add(outputPath);
     generatedFileTasks.push({
       outputPath,

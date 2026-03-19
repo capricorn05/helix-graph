@@ -139,10 +139,10 @@ Declares a compiled view. TSX subset applies.
 
 ### 6.3 Escape hatches
 
-- `uncompiledView(fn)` — runtime evaluation, no patch compile
-- `clientOnly(loader)` — loads an island component after paint
-- `rawComponent(React/Vue)` — mounts external component as an island
-- `dangerouslyRawHTML(html)` — controlled HTML injection
+- `uncompiledView(() => html)` — emits a compiled `html` patch slot for runtime HTML insertion
+- `clientOnly(() => import("/client/chunk.js"), props)` — emits a placeholder with serialized props and mounts after resume
+- `rawComponent(React/Vue)` — planned, not part of the current runtime contract
+- `dangerouslyRawHTML(html)` — planned, not part of the current runtime contract
 
 Tooling requirement: dev mode warns when escape hatch footprint exceeds thresholds.
 
@@ -169,6 +169,11 @@ Tooling requirement: dev mode warns when escape hatch footprint exceeds threshol
 - `activates(EventBinding, Chunk)`
 - `owns(ScopeOwner, Cell)` — lifecycle ownership (GC rules)
 
+Current repository wiring additionally records request-flow edges as:
+
+- `renders(RouteNode, ViewNode)` from matched route to rendered view artifact
+- `dependsOn(ResourceNode, ViewNode)` for resources consumed by that rendered view
+
 ### 7.3 Determinism rules
 
 Compiled regions must allow static extraction of:
@@ -179,12 +184,32 @@ Compiled regions must allow static extraction of:
 
 ## 8. View Output Format (DOM Template + Patch Ops)
 
-### 8.1 Compiled view produces
+### 8.1 Compiled view artifact
 
-- `createFragment(): DocumentFragment`
-- `patchTable: PatchFn[]`
-- `targetMap: targetId → DOM node reference offset`
-- `bindingSlots: slotId → (targetId, patchFnIndex, dependencyNodeId)`
+A `CompiledViewArtifact<Props>` contains:
+
+```ts
+{
+  id?: string;                              // optional artifact identifier
+  label?: string;                           // human-readable artifact name
+  template: string;                         // static SSR template with placeholder tokens
+  patches: readonly CompiledViewPatch[];    // dynamic patch descriptors
+  bindingMap: BindingMap;                   // event bindings + keyed list config
+}
+```
+
+Each `CompiledViewPatch` (text, attr, or html) includes:
+
+- `kind`: `"text"` | `"attr"` | `"html"`
+- `token`: placeholder string in template (e.g., `__HX_TEXT_myview_1__`)
+- `targetId`: DOM node ID to patch (e.g., `"hx-slot-1"`)
+- `attrName?`: (attr patches only) attribute to update
+- `evaluate`: `(props: Props) => unknown` function that evaluates the patch value
+
+Patch application:
+
+1. Server: render template to string with tokens → stream HTML
+2. Client: SSR string parse → locate targets by ID → execute evaluate() with props → apply patch ops
 
 ### 8.2 Patch op set (v0.1)
 
@@ -547,6 +572,8 @@ Run `npm run gen:views` to emit/refresh `*.compiled.ts` output.
 The example wrapper `src/example/scripts/generate-compiled-views.ts` delegates orchestration to
 the framework API in `src/helix/compiled-view-codegen.ts` (`runCompiledViewCodegen(...)`) so scan/
 compile/emit/check/stale-prune behavior stays shared and app scripts remain path/config focused.
+Generated modules infer props from the TSX default export signature and register a stable compiled
+`ViewNode` via `defineCompiledViewArtifact(compiledViewId(...), ...)`.
 
 ### Step 3 — Implement server wrapper
 
@@ -555,6 +582,7 @@ In `src/example/views/*.ts`, render dynamic sections (cards/tables/pager) and pa
 ### Step 4 — Wire page route
 
 Add/extend page logic in `src/example/handlers/pages.handler.ts` and register route in `src/example/routes/index.ts`.
+Route handlers receive `routeId` on `RouteContext` and should connect route/view/resource edges after render for graph traceability.
 
 ### Step 5 — Add optional hybrid interaction path
 
@@ -571,3 +599,78 @@ For frequent updates (paging/sort/filter), add:
 - `npm run verify` before push
 
 Reference implementation: Host Listings (`/host-listings`) uses this full path (compiled shell + hybrid JSON paging updates).
+
+## 24. Primitive Layer Contracts
+
+### 24.1 EventAdapter Interface
+
+Seam for event binding. All primitives inject an `EventAdapter` to wire event listeners. Default implementation uses `addEventListener`/`removeEventListener` directly; can be overridden for future compiler integration.
+
+```typescript
+interface EventAdapter {
+  on(
+    element: EventTarget,
+    type: string,
+    handler: EventListener,
+    options?: AddEventListenerOptions,
+  ): () => void;
+}
+```
+
+### 24.2 Controllable State Pattern
+
+Primitives unify three state modes: uncontrolled (defaultValue), controlled (value prop), and Cell integration. Implemented in `createControllableState<T>()`.
+
+```typescript
+interface PrimitiveStateOptions<T> {
+  value?: T;
+  defaultValue?: T;
+  onChange?: (next: T) => void;
+  cell?: Cell<T>;
+}
+
+// Returns { get(): T; set(next: T): void }
+```
+
+- **Uncontrolled:** tracks state internally; `onChange` fires on updates
+- **Controlled:** respects `value` prop; internal state does not update
+- **Cell mode:** syncs with `Cell<T>` bidirectionally
+
+### 24.3 Focus Management
+
+`trapFocus(root)` wraps Tab/Shift+Tab with circular cycling within root. `restoreFocus(el)` restores focus to previously focused element.
+
+### 24.4 Portal Strategy
+
+Floating primitives (dialog, popover, menu, dropdown, tooltip, select, combobox) mount to `#__hx-portal-root__` by default, bypassing CSS overflow/clip ancestors and z-index stacking contexts. Inline primitives (tabs, accordion) do not use portals. Toasts use a dedicated fixed-position viewport container.
+
+### 24.5 Positioning Model
+
+`computePosition(anchor, floating, { placement, offset, flip, viewportPadding })` returns `{ top, left, placementUsed }` in absolute page coordinates. The positioning engine supports collision-aware flipping, viewport clamping, and 8 placements: top/top-start/top-end, bottom/bottom-start/bottom-end, left, right. `applyPosition()` uses `style.setProperty()` for `top`, `left`, and `position`.
+
+### 24.6 Keyboard Handling
+
+`createKeyboardHandler(map)` matches `KeyboardEvent.key` values and dispatches. Layer-stack ensures only the topmost overlay handles Escape. View compilation also supports explicit event selection for `data-hx-bind` via compile-time `data-hx-event="..."` overrides.
+
+### 24.7 ARIA Attributes
+
+Each primitive auto-wires ARIA roles, attributes, and relationships:
+
+- **Dialog:** `role="dialog"`, `aria-modal="true"`, focus-trapped, modal behavior
+- **Popover:** `role="region"`, `aria-haspopup="true"`, non-modal, positioned
+- **Menu:** `role="menu"`, `role="menuitem"`, roving focus, keyboard nav
+- **Tabs:** `role="tablist"`, `role="tab"`, `role="tabpanel"`, `aria-selected`
+- **Tooltip:** `role="tooltip"`, `aria-describedby`
+- **Accordion:** `aria-expanded`, `aria-controls`, region panels
+- **Toast:** `role="status"`, `aria-live`
+- **Select / Combobox:** `role="listbox"`, `role="option"`, `aria-expanded`, `aria-controls` (combobox also wires `aria-activedescendant`)
+
+### 24.8 Example App Integration Pattern
+
+The example app mounts primitive controllers in `src/example/client/primitives-demo.ts` for:
+
+- Full primitives showcase route (`/primitives`)
+- Search page enhancements (`/search`): combobox + help popover
+- Settings page enhancements (`/settings`): select + help tooltip
+
+Controllers are initialized on first bootstrap and re-initialized after app-core fragment navigation so primitive behavior stays attached after partial page swaps.

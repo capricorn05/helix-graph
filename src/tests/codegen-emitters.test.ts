@@ -44,7 +44,7 @@ test("buildBindingMapModuleSource emits stable sorted binding map module", () =>
   );
 });
 
-test("buildCompiledViewModuleSource emits compiled view module with inferred binding metadata", () => {
+test("buildCompiledViewModuleSource emits typed compiled view module with inferred binding metadata", () => {
   const compiled: CompiledViewResult = {
     template: '<button data-hx-bind="save-user">__HX_TEXT__</button>',
     patches: [
@@ -66,6 +66,7 @@ test("buildCompiledViewModuleSource emits compiled view module with inferred bin
     fileBasename: "demo-view",
     propsIdentifier: "props",
     compiled,
+    sourceModuleImportPath: "../../views-tsx/demo-view.view.js",
     bindingMapTypeImportPath: "../../../helix/types.js",
     viewCompilerImportPath: "../../../helix/view-compiler.js",
     bindingInference: {
@@ -73,10 +74,22 @@ test("buildCompiledViewModuleSource emits compiled view module with inferred bin
     },
   });
 
-  assert.match(source, /export const demoViewCompiledArtifact/);
-  assert.match(source, /renderDemoViewCompiledView\(props: any\)/);
+  assert.match(source, /export type DemoViewCompiledViewProps = Parameters</);
+  assert.match(source, /defineCompiledViewArtifact<DemoViewCompiledViewProps>/);
+  assert.match(source, /compiledViewId\("demo-view"\)/);
+  assert.match(
+    source,
+    /export const demoViewCompiledViewId = demoViewCompiledArtifact\.id;/,
+  );
+  assert.match(
+    source,
+    /renderDemoViewCompiledView\(props: DemoViewCompiledViewProps\)/,
+  );
   assert.match(source, /buildDemoViewCompiledBindingMap/);
   assert.match(source, /"save-form": \{[\s\S]*preventDefault: true,/);
   assert.match(source, /"users-body": \{[\s\S]*keyAttr: "data-hx-key",/);
-  assert.match(source, /evaluate: \(props: any\) => \(props\.label\),/);
+  assert.match(
+    source,
+    /evaluate: \(props: DemoViewCompiledViewProps\) => \(props\.label\),/,
+  );
 });

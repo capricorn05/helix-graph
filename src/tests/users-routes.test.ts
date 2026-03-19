@@ -66,6 +66,7 @@ function createRouteContext(
     request,
     response: mockResponse.response,
     url,
+    routeId: `test:${pathname}`,
     params,
     searchParams: url.searchParams,
     mockResponse,

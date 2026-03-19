@@ -16,7 +16,9 @@ export default function ExternalGridPageView(props: ExternalGridPageProps) {
       <section data-hx-id="external-grid-root">
         <h2>External Data Grid</h2>
         <p>
-          Loaded {props.rowCount} rows from page {props.page} of a {props.totalRows}
+          Loaded <span data-hx-id="external-grid-row-count">{props.rowCount}</span>{" "}
+          rows from page <span data-hx-id="external-grid-summary-page">{props.page}</span>{" "}
+          of a <span data-hx-id="external-grid-summary-total">{props.totalRows}</span>
           -row dataset.
         </p>
 

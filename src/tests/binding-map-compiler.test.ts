@@ -51,6 +51,17 @@ const two = '<form data-hx-bind="shared-id"></form>';
   );
 });
 
+test("collectBindingsAndListsFromViewSource honors data-hx-event overrides", () => {
+  const source = `
+const one = '<button data-hx-bind="shared-id" data-hx-event="keydown"></button>';
+`;
+
+  const sourceFile = parseTypeScriptSourceFile("/tmp/override.view.ts", source);
+  const result = collectBindingsAndListsFromViewSource(sourceFile);
+
+  assert.deepEqual(result.bindings, [{ id: "shared-id", event: "keydown" }]);
+});
+
 test("collectClientHandlersFromSource returns only exported function handlers", () => {
   const source = `
 export function onSave() {}
