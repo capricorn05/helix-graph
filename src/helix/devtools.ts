@@ -19,7 +19,7 @@ export class HelixDevtools {
     this.config = {
       position: config?.position ?? "bottom-right",
       startOpen: config?.startOpen ?? false,
-      maxTraceEntries: config?.maxTraceEntries ?? 50
+      maxTraceEntries: config?.maxTraceEntries ?? 50,
     };
   }
 
@@ -85,11 +85,21 @@ export class HelixDevtools {
     document.body.appendChild(panel);
     this.panelElement = panel;
 
-    panel.querySelector("#__helix_devtools_close__")?.addEventListener("click", () => this.close());
-    panel.querySelector("#__helix_graph_tab__")?.addEventListener("click", () => this.switchTab("graph"));
-    panel.querySelector("#__helix_topology_tab__")?.addEventListener("click", () => this.switchTab("topology"));
-    panel.querySelector("#__helix_traces_tab__")?.addEventListener("click", () => this.switchTab("traces"));
-    panel.querySelector("#__helix_clear_btn__")?.addEventListener("click", () => this.clearTraces());
+    panel
+      .querySelector("#__helix_devtools_close__")
+      ?.addEventListener("click", () => this.close());
+    panel
+      .querySelector("#__helix_graph_tab__")
+      ?.addEventListener("click", () => this.switchTab("graph"));
+    panel
+      .querySelector("#__helix_topology_tab__")
+      ?.addEventListener("click", () => this.switchTab("topology"));
+    panel
+      .querySelector("#__helix_traces_tab__")
+      ?.addEventListener("click", () => this.switchTab("traces"));
+    panel
+      .querySelector("#__helix_clear_btn__")
+      ?.addEventListener("click", () => this.clearTraces());
 
     // Make panel draggable
     this.makeHeaderDraggable(panel);
@@ -124,12 +134,24 @@ export class HelixDevtools {
   }
 
   private switchTab(tab: "graph" | "topology" | "traces"): void {
-    const graphView = this.panelElement?.querySelector("#__helix_graph_view__") as HTMLElement;
-    const topologyView = this.panelElement?.querySelector("#__helix_topology_view__") as HTMLElement;
-    const tracesView = this.panelElement?.querySelector("#__helix_traces_view__") as HTMLElement;
-    const graphTab = this.panelElement?.querySelector("#__helix_graph_tab__") as HTMLElement;
-    const topologyTab = this.panelElement?.querySelector("#__helix_topology_tab__") as HTMLElement;
-    const tracesTab = this.panelElement?.querySelector("#__helix_traces_tab__") as HTMLElement;
+    const graphView = this.panelElement?.querySelector(
+      "#__helix_graph_view__",
+    ) as HTMLElement;
+    const topologyView = this.panelElement?.querySelector(
+      "#__helix_topology_view__",
+    ) as HTMLElement;
+    const tracesView = this.panelElement?.querySelector(
+      "#__helix_traces_view__",
+    ) as HTMLElement;
+    const graphTab = this.panelElement?.querySelector(
+      "#__helix_graph_tab__",
+    ) as HTMLElement;
+    const topologyTab = this.panelElement?.querySelector(
+      "#__helix_topology_tab__",
+    ) as HTMLElement;
+    const tracesTab = this.panelElement?.querySelector(
+      "#__helix_traces_tab__",
+    ) as HTMLElement;
 
     const inactiveStyle = "#333";
     const activeStyle = "#2d2d30";
@@ -137,21 +159,39 @@ export class HelixDevtools {
     if (graphView) graphView.style.display = "none";
     if (topologyView) topologyView.style.display = "none";
     if (tracesView) tracesView.style.display = "none";
-    if (graphTab) { graphTab.style.background = inactiveStyle; graphTab.style.fontWeight = "normal"; }
-    if (topologyTab) { topologyTab.style.background = inactiveStyle; topologyTab.style.fontWeight = "normal"; }
-    if (tracesTab) { tracesTab.style.background = inactiveStyle; tracesTab.style.fontWeight = "normal"; }
+    if (graphTab) {
+      graphTab.style.background = inactiveStyle;
+      graphTab.style.fontWeight = "normal";
+    }
+    if (topologyTab) {
+      topologyTab.style.background = inactiveStyle;
+      topologyTab.style.fontWeight = "normal";
+    }
+    if (tracesTab) {
+      tracesTab.style.background = inactiveStyle;
+      tracesTab.style.fontWeight = "normal";
+    }
 
     if (tab === "graph") {
       if (graphView) graphView.style.display = "block";
-      if (graphTab) { graphTab.style.background = activeStyle; graphTab.style.fontWeight = "bold"; }
+      if (graphTab) {
+        graphTab.style.background = activeStyle;
+        graphTab.style.fontWeight = "bold";
+      }
       this.renderGraphView();
     } else if (tab === "topology") {
       if (topologyView) topologyView.style.display = "block";
-      if (topologyTab) { topologyTab.style.background = activeStyle; topologyTab.style.fontWeight = "bold"; }
+      if (topologyTab) {
+        topologyTab.style.background = activeStyle;
+        topologyTab.style.fontWeight = "bold";
+      }
       this.renderTopologyView();
     } else {
       if (tracesView) tracesView.style.display = "block";
-      if (tracesTab) { tracesTab.style.background = activeStyle; tracesTab.style.fontWeight = "bold"; }
+      if (tracesTab) {
+        tracesTab.style.background = activeStyle;
+        tracesTab.style.fontWeight = "bold";
+      }
       this.renderTracesView();
     }
   }
@@ -162,20 +202,20 @@ export class HelixDevtools {
 
     const { nodes } = runtimeGraph.toJSON();
     if (nodes.length === 0) {
-      nodesList.innerHTML = "<div style=\"color: #888;\">No nodes</div>";
+      nodesList.innerHTML = '<div style="color: #888;">No nodes</div>';
       return;
     }
 
     const TYPE_COLORS: Record<string, string> = {
-      RouteNode:    "#c586c0",
-      ViewNode:     "#4ec9b0",
+      RouteNode: "#c586c0",
+      ViewNode: "#4ec9b0",
       ResourceNode: "#dcdcaa",
-      ActionNode:   "#f44747",
-      CellNode:     "#9cdcfe",
-      DerivedNode:  "#4fc1ff",
-      EffectNode:   "#ce9178",
-      AssetNode:    "#b5cea8",
-      ModuleNode:   "#808080"
+      ActionNode: "#f44747",
+      CellNode: "#9cdcfe",
+      DerivedNode: "#4fc1ff",
+      EffectNode: "#ce9178",
+      AssetNode: "#b5cea8",
+      ModuleNode: "#808080",
     };
 
     // Group by type
@@ -186,44 +226,63 @@ export class HelixDevtools {
       groups.set(node.type, list);
     }
 
-    const ORDER = ["RouteNode", "ViewNode", "ResourceNode", "ActionNode", "CellNode", "DerivedNode", "EffectNode", "AssetNode", "ModuleNode"];
+    const ORDER = [
+      "RouteNode",
+      "ViewNode",
+      "ResourceNode",
+      "ActionNode",
+      "CellNode",
+      "DerivedNode",
+      "EffectNode",
+      "AssetNode",
+      "ModuleNode",
+    ];
     const sortedGroups = [...groups.entries()].sort(
-      ([a], [b]) => ORDER.indexOf(a) - ORDER.indexOf(b)
+      ([a], [b]) => ORDER.indexOf(a) - ORDER.indexOf(b),
     );
 
-    const html = sortedGroups.map(([type, groupNodes]) => {
-      const color = TYPE_COLORS[type] ?? "#d4d4d4";
-      const items = groupNodes.map((node) => {
-        const meta = node.meta ? JSON.stringify(node.meta, null, 2) : "";
-        const title = meta ? ` title="${meta.replace(/"/g, "&quot;")}"` : "";
-        return `<div style="padding: 3px 6px; border-left: 2px solid ${color}; margin-bottom: 2px;"${title}>
+    const html = sortedGroups
+      .map(([type, groupNodes]) => {
+        const color = TYPE_COLORS[type] ?? "#d4d4d4";
+        const items = groupNodes
+          .map((node) => {
+            const meta = node.meta ? JSON.stringify(node.meta, null, 2) : "";
+            const title = meta
+              ? ` title="${meta.replace(/"/g, "&quot;")}"`
+              : "";
+            return `<div style="padding: 3px 6px; border-left: 2px solid ${color}; margin-bottom: 2px;"${title}>
           <span style="color: #d4d4d4;">${node.label}</span>
           <span style="color: #555; font-size: 10px; margin-left: 6px;">${node.id}</span>
         </div>`;
-      }).join("");
-      return `<div style="margin-bottom: 8px;">
+          })
+          .join("");
+        return `<div style="margin-bottom: 8px;">
         <div style="color: ${color}; font-weight: bold; margin-bottom: 3px; font-size: 11px;">${type} (${groupNodes.length})</div>
         ${items}
       </div>`;
-    }).join("");
+      })
+      .join("");
 
     nodesList.innerHTML = html;
   }
 
   private renderTopologyView(): void {
-    const container = this.panelElement?.querySelector("#__helix_topology_list__");
+    const container = this.panelElement?.querySelector(
+      "#__helix_topology_list__",
+    );
     if (!container) return;
 
     const { nodes, edges } = runtimeGraph.toJSON();
     if (nodes.length === 0) {
-      container.innerHTML = "<div style=\"color: #888;\">No reactive nodes registered</div>";
+      container.innerHTML =
+        '<div style="color: #888;">No reactive nodes registered</div>';
       return;
     }
 
     // Build lookup maps
     const nodeMap = new Map<string, GraphNode>(nodes.map((n) => [n.id, n]));
     const ownedBy = new Map<string, string[]>(); // owner id → owned node ids
-    const depsOf = new Map<string, string[]>();   // node id → dependency node ids
+    const depsOf = new Map<string, string[]>(); // node id → dependency node ids
 
     for (const edge of edges as GraphEdge[]) {
       if (edge.type === "owns") {
@@ -241,18 +300,16 @@ export class HelixDevtools {
     const scopeNodes = nodes.filter(
       (n) => n.meta?.["kind"] === "reactive-scope",
     );
-    const ownedIds = new Set<string>(
-      [...ownedBy.values()].flat(),
-    );
+    const ownedIds = new Set<string>([...ownedBy.values()].flat());
     // Nodes not owned by any scope
     const orphanNodes = nodes.filter(
       (n) => !ownedIds.has(n.id) && n.meta?.["kind"] !== "reactive-scope",
     );
 
     const TYPE_COLORS: Record<string, string> = {
-      CellNode:    "#9cdcfe",
+      CellNode: "#9cdcfe",
       DerivedNode: "#4fc1ff",
-      EffectNode:  "#ce9178",
+      EffectNode: "#ce9178",
     };
 
     const renderNode = (node: GraphNode): string => {
@@ -261,11 +318,12 @@ export class HelixDevtools {
         .map((depId) => nodeMap.get(depId))
         .filter(Boolean) as GraphNode[];
 
-      const depsHtml = deps.length > 0
-        ? `<div style="padding-left: 12px; color: #888; margin-top: 2px;">
+      const depsHtml =
+        deps.length > 0
+          ? `<div style="padding-left: 12px; color: #888; margin-top: 2px;">
             deps: ${deps.map((d) => `<span style="color: ${TYPE_COLORS[d.type] ?? "#aaa"};">${d.label}</span>`).join(", ")}
            </div>`
-        : "";
+          : "";
 
       const kindBadge = node.meta?.["kind"]
         ? `<span style="color: #555; font-size: 9px; text-transform: uppercase; margin-left: 4px;">[${node.meta["kind"]}]</span>`
@@ -279,35 +337,48 @@ export class HelixDevtools {
       </div>`;
     };
 
-    const scopeHtml = scopeNodes.map((scope) => {
-      const owned = (ownedBy.get(scope.id) ?? [])
-        .map((id) => nodeMap.get(id))
-        .filter(Boolean) as GraphNode[];
+    const scopeHtml = scopeNodes
+      .map((scope) => {
+        const owned = (ownedBy.get(scope.id) ?? [])
+          .map((id) => nodeMap.get(id))
+          .filter(Boolean) as GraphNode[];
 
-      const childrenHtml = owned.length > 0
-        ? owned.map((n) => `<div style="padding-left: 12px;">${renderNode(n)}</div>`).join("")
-        : "<div style=\"padding-left: 12px; color: #555; font-size: 10px;\">empty</div>";
+        const childrenHtml =
+          owned.length > 0
+            ? owned
+                .map(
+                  (n) =>
+                    `<div style="padding-left: 12px;">${renderNode(n)}</div>`,
+                )
+                .join("")
+            : '<div style="padding-left: 12px; color: #555; font-size: 10px;">empty</div>';
 
-      const scopeColor = "#c586c0";
-      return `<div style="margin-bottom: 10px; border: 1px solid #333; border-radius: 4px; padding: 6px;">
+        const scopeColor = "#c586c0";
+        return `<div style="margin-bottom: 10px; border: 1px solid #333; border-radius: 4px; padding: 6px;">
         <div style="color: ${scopeColor}; font-weight: bold; margin-bottom: 4px;">
           &#x25BC; Scope: <span style="color: #d4d4d4;">${scope.label}</span>
           <span style="color: #555; font-size: 10px; margin-left: 4px;">${scope.id}</span>
         </div>
         ${childrenHtml}
       </div>`;
-    }).join("");
+      })
+      .join("");
 
-    const orphanHtml = orphanNodes.length > 0
-      ? `<div style="margin-bottom: 6px; color: #888; font-size: 10px; text-transform: uppercase;">Unowned nodes</div>`
-        + orphanNodes.map((n) => renderNode(n)).join("")
-      : "";
+    const orphanHtml =
+      orphanNodes.length > 0
+        ? `<div style="margin-bottom: 6px; color: #888; font-size: 10px; text-transform: uppercase;">Unowned nodes</div>` +
+          orphanNodes.map((n) => renderNode(n)).join("")
+        : "";
 
-    container.innerHTML = (scopeHtml + orphanHtml) || "<div style=\"color: #888;\">No scope topology to display</div>";
+    container.innerHTML =
+      scopeHtml + orphanHtml ||
+      '<div style="color: #888;">No scope topology to display</div>';
   }
 
   private renderTracesView(): void {
-    const tracesList = this.panelElement?.querySelector("#__helix_traces_list__");
+    const tracesList = this.panelElement?.querySelector(
+      "#__helix_traces_list__",
+    );
     if (!tracesList) return;
 
     const traces = this.scheduler?.getTraces() ?? [];
@@ -321,17 +392,20 @@ export class HelixDevtools {
             <div style="color: #ce9178; margin-top: 2px;">Lane: <span style="color: #9cdcfe;">${trace.lane}</span></div>
             <div style="color: #ce9178;">Patches: <span style="color: #9cdcfe;">${trace.patches}</span></div>
             <div style="color: #ce9178;">Duration: <span style="color: #9cdcfe;">${trace.durationMs.toFixed(2)}ms</span></div>
-          </div>`
+          </div>`,
       )
       .join("");
 
-    tracesList.innerHTML = html || "<div style=\"color: #888;\">No traces recorded</div>";
+    tracesList.innerHTML =
+      html || '<div style="color: #888;">No traces recorded</div>';
   }
 
   private clearTraces(): void {
-    const tracesList = this.panelElement?.querySelector("#__helix_traces_list__");
+    const tracesList = this.panelElement?.querySelector(
+      "#__helix_traces_list__",
+    );
     if (tracesList) {
-      tracesList.innerHTML = "<div style=\"color: #888;\">Traces cleared</div>";
+      tracesList.innerHTML = '<div style="color: #888;">Traces cleared</div>';
     }
   }
 

@@ -24,22 +24,25 @@ export function createVisibilityTrigger(
 ): VisibilityTriggerController {
   const once = options?.once ?? true;
 
-  const observer = new IntersectionObserver((entries) => {
-    for (const entry of entries) {
-      if (!entry.isIntersecting) {
-        continue;
-      }
+  const observer = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) {
+          continue;
+        }
 
-      onVisible(entry.target, entry);
-      if (once) {
-        observer.unobserve(entry.target);
+        onVisible(entry.target, entry);
+        if (once) {
+          observer.unobserve(entry.target);
+        }
       }
-    }
-  }, {
-    root: options?.root ?? null,
-    rootMargin: options?.rootMargin,
-    threshold: options?.threshold,
-  });
+    },
+    {
+      root: options?.root ?? null,
+      rootMargin: options?.rootMargin,
+      threshold: options?.threshold,
+    },
+  );
 
   return {
     observe(element: Element): void {
@@ -77,7 +80,10 @@ export function createIdleTrigger(
     };
   }
 
-  const timeoutId = setTimeout(() => callback(undefined), options?.timeout ?? 1);
+  const timeoutId = setTimeout(
+    () => callback(undefined),
+    options?.timeout ?? 1,
+  );
   return {
     cancel(): void {
       clearTimeout(timeoutId);

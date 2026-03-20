@@ -23,7 +23,9 @@ let draggingPostId: number | null = null;
 let draggingRow: HTMLElement | null = null;
 
 function setPostsReorderStatus(value: string): void {
-  const statusEl = document.querySelector('[data-hx-id="posts-reorder-status"]');
+  const statusEl = document.querySelector(
+    '[data-hx-id="posts-reorder-status"]',
+  );
   if (statusEl instanceof HTMLElement) {
     statusEl.textContent = value;
   }
@@ -45,9 +47,14 @@ function readPostsRowIds(container: HTMLElement): number[] {
   return ids;
 }
 
-function applyPostsOrder(container: HTMLElement, orderedIds: readonly number[]): void {
+function applyPostsOrder(
+  container: HTMLElement,
+  orderedIds: readonly number[],
+): void {
   const rowById = new Map<number, HTMLElement>();
-  for (const row of container.querySelectorAll<HTMLElement>("tr[data-post-id]")) {
+  for (const row of container.querySelectorAll<HTMLElement>(
+    "tr[data-post-id]",
+  )) {
     const id = Number(row.dataset.postId ?? "");
     if (!Number.isFinite(id) || id <= 0) {
       continue;
@@ -64,7 +71,10 @@ function applyPostsOrder(container: HTMLElement, orderedIds: readonly number[]):
   }
 }
 
-function sameNumericOrder(left: readonly number[], right: readonly number[]): boolean {
+function sameNumericOrder(
+  left: readonly number[],
+  right: readonly number[],
+): boolean {
   if (left.length !== right.length) {
     return false;
   }
@@ -188,7 +198,10 @@ function resolveDraggedRow(event: Event): HTMLElement | null {
   return row instanceof HTMLElement ? row : null;
 }
 
-function isRowInPostsContainer(row: HTMLElement, mount: PostsReorderMount): boolean {
+function isRowInPostsContainer(
+  row: HTMLElement,
+  mount: PostsReorderMount,
+): boolean {
   return row.closest('[data-hx-id="posts-body"]') === mount.container;
 }
 
@@ -302,7 +315,9 @@ function initializePostsReorderEnhancement(): void {
       return;
     }
 
-    const btn = event.target.closest<HTMLElement>("button[data-reorder-dir][data-post-id]");
+    const btn = event.target.closest<HTMLElement>(
+      "button[data-reorder-dir][data-post-id]",
+    );
     if (!btn) {
       return;
     }

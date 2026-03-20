@@ -76,7 +76,9 @@ function createMockResponse(): MockHttpResponse {
 }
 
 function createMockGetRequest(): IncomingMessage {
-  return Object.assign(new EventEmitter(), { method: "GET" }) as unknown as IncomingMessage;
+  return Object.assign(new EventEmitter(), {
+    method: "GET",
+  }) as unknown as IncomingMessage;
 }
 
 function createMockPostRequest(body: unknown): IncomingMessage {
@@ -84,7 +86,9 @@ function createMockPostRequest(body: unknown): IncomingMessage {
   return readable as unknown as IncomingMessage;
 }
 
-function makeGetContext(url: string): RouteContext & { mock: MockHttpResponse } {
+function makeGetContext(
+  url: string,
+): RouteContext & { mock: MockHttpResponse } {
   const mock = createMockResponse();
   const request = createMockGetRequest();
   const parsed = new URL(`http://localhost${url}`);
@@ -142,7 +146,10 @@ test("/api/users/suggest returns matching suggestions for a query", async () => 
 
   const payload = JSON.parse(ctx.mock.body) as { suggestions: unknown[] };
   assert.ok(Array.isArray(payload.suggestions));
-  assert.ok(payload.suggestions.length > 0, "Expected at least one suggestion for 'ava'");
+  assert.ok(
+    payload.suggestions.length > 0,
+    "Expected at least one suggestion for 'ava'",
+  );
 
   const first = payload.suggestions[0] as Record<string, unknown>;
   assert.ok(typeof first.id === "number");
@@ -180,7 +187,10 @@ test("/api/users/suggest caps results at 8", async () => {
 
   assert.equal(ctx.mock.statusCode, 200);
   const payload = JSON.parse(ctx.mock.body) as { suggestions: unknown[] };
-  assert.ok(payload.suggestions.length <= 8, `Expected ≤8 suggestions, got ${payload.suggestions.length}`);
+  assert.ok(
+    payload.suggestions.length <= 8,
+    `Expected ≤8 suggestions, got ${payload.suggestions.length}`,
+  );
 });
 
 test("/api/users/suggest matches on email as well as name", async () => {
@@ -190,7 +200,10 @@ test("/api/users/suggest matches on email as well as name", async () => {
 
   assert.equal(ctx.mock.statusCode, 200);
   const payload = JSON.parse(ctx.mock.body) as { suggestions: unknown[] };
-  assert.ok(payload.suggestions.length > 0, "Expected email-matched suggestions");
+  assert.ok(
+    payload.suggestions.length > 0,
+    "Expected email-matched suggestions",
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -216,7 +229,10 @@ test("/actions/reorder-posts returns 400 when rowIds is missing", async () => {
 });
 
 test("/actions/reorder-posts returns 400 when rowIds is empty", async () => {
-  const ctx = makePostContext("/actions/reorder-posts", { page: 1, rowIds: [] });
+  const ctx = makePostContext("/actions/reorder-posts", {
+    page: 1,
+    rowIds: [],
+  });
 
   await handleReorderPosts(ctx);
 
@@ -318,7 +334,10 @@ test("/api/invalidation-stream sets SSE headers and immediately writes connected
   );
   assert.equal(mock.headers.get("cache-control"), "no-cache, no-transform");
   assert.equal(mock.headers.get("connection"), "keep-alive");
-  assert.ok(mock.body.includes(": connected\n\n"), "Expected SSE connected comment");
+  assert.ok(
+    mock.body.includes(": connected\n\n"),
+    "Expected SSE connected comment",
+  );
 
   // Cleanup: trigger close so the heartbeat interval is cleared
   request.emit("close");

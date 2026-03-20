@@ -147,18 +147,21 @@ export function createFormState<T extends Record<string, unknown>>(config: {
       owner: config.owner,
     });
 
-    const errorDerived: Derived<string | null> = derived(() => {
-      // depend on serverErrorVersion so server errors trigger re-evaluation
-      void serverErrorVersion.get();
-      const serverErr = serverErrors[key] ?? null;
-      if (serverErr !== null) {
-        return serverErr;
-      }
-      return fieldConfig.validate?.(valueCell.get()) ?? null;
-    }, {
-      name: `form:${String(key)}:error`,
-      owner: config.owner,
-    });
+    const errorDerived: Derived<string | null> = derived(
+      () => {
+        // depend on serverErrorVersion so server errors trigger re-evaluation
+        void serverErrorVersion.get();
+        const serverErr = serverErrors[key] ?? null;
+        if (serverErr !== null) {
+          return serverErr;
+        }
+        return fieldConfig.validate?.(valueCell.get()) ?? null;
+      },
+      {
+        name: `form:${String(key)}:error`,
+        owner: config.owner,
+      },
+    );
 
     return {
       value: valueCell,
@@ -171,20 +174,27 @@ export function createFormState<T extends Record<string, unknown>>(config: {
     fieldKeys.map((key) => [key, createFieldState(key)]),
   ) as unknown as { [K2 in K]: ReactiveFieldState<T[K2]> };
 
-  const isValid: Derived<boolean> = derived(() => {
-    for (const key of fieldKeys) {
-      if (fields[key].error.get() !== null) return false;
-    }
-    return true;
-  }, { name: "form:isValid", owner: config.owner });
+  const isValid: Derived<boolean> = derived(
+    () => {
+      for (const key of fieldKeys) {
+        if (fields[key].error.get() !== null) return false;
+      }
+      return true;
+    },
+    { name: "form:isValid", owner: config.owner },
+  );
 
-  const isDirty: Derived<boolean> = derived(() => {
-    for (const key of fieldKeys) {
-      const fieldConfig = config.fields[key] as FormFieldConfig<T[K]>;
-      if (!Object.is(fields[key].value.get(), fieldConfig.initial)) return true;
-    }
-    return false;
-  }, { name: "form:isDirty", owner: config.owner });
+  const isDirty: Derived<boolean> = derived(
+    () => {
+      for (const key of fieldKeys) {
+        const fieldConfig = config.fields[key] as FormFieldConfig<T[K]>;
+        if (!Object.is(fields[key].value.get(), fieldConfig.initial))
+          return true;
+      }
+      return false;
+    },
+    { name: "form:isDirty", owner: config.owner },
+  );
 
   const isSubmitting = cell<boolean>(false, {
     name: "form:isSubmitting",
@@ -250,8 +260,7 @@ export function createFormState<T extends Record<string, unknown>>(config: {
       const result = await handler(getValues());
       return result;
     } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : String(err);
+      const message = err instanceof Error ? err.message : String(err);
       submitError.set(message);
       throw err;
     } finally {

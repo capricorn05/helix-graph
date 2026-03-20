@@ -106,9 +106,9 @@ function renderFilterChip(
 function hasActiveFilters(filters: MongoAirbnbFilters): boolean {
   return Boolean(
     filters.market ||
-      filters.roomType ||
-      typeof filters.maxPrice === "number" ||
-      typeof filters.minGuests === "number",
+    filters.roomType ||
+    typeof filters.maxPrice === "number" ||
+    typeof filters.minGuests === "number",
   );
 }
 
@@ -121,7 +121,10 @@ export function buildMongoAirbnbPageHref(
     ...(overrides.filters ?? {}),
   };
 
-  if (nextFilters.market !== undefined && nextFilters.market.trim().length === 0) {
+  if (
+    nextFilters.market !== undefined &&
+    nextFilters.market.trim().length === 0
+  ) {
     delete nextFilters.market;
   }
 

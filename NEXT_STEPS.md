@@ -851,15 +851,15 @@ Open follow-ups from this pass:
 
 ### New files
 
-| File | Purpose |
-|------|---------|
-| `src/helix/autocomplete.ts` | Headless reactive autocomplete island |
-| `src/helix/drag-reorder.ts` | Drag-and-drop reorder primitive + rollback |
-| `src/helix/invalidation-channel.ts` | SSE/WebSocket live cache invalidation |
-| `src/tests/devtools.test.ts` | DevTools topology/graph tab tests |
-| `src/tests/autocomplete.test.ts` | Autocomplete island tests |
-| `src/tests/drag-reorder.test.ts` | Drag-reorder + rollback tests |
-| `src/tests/invalidation-channel.test.ts` | Invalidation channel tests |
+| File                                     | Purpose                                    |
+| ---------------------------------------- | ------------------------------------------ |
+| `src/helix/autocomplete.ts`              | Headless reactive autocomplete island      |
+| `src/helix/drag-reorder.ts`              | Drag-and-drop reorder primitive + rollback |
+| `src/helix/invalidation-channel.ts`      | SSE/WebSocket live cache invalidation      |
+| `src/tests/devtools.test.ts`             | DevTools topology/graph tab tests          |
+| `src/tests/autocomplete.test.ts`         | Autocomplete island tests                  |
+| `src/tests/drag-reorder.test.ts`         | Drag-reorder + rollback tests              |
+| `src/tests/invalidation-channel.test.ts` | Invalidation channel tests                 |
 
 ### Updated production readiness
 

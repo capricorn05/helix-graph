@@ -40,7 +40,9 @@ test("createDragReorder: commit calls onReorder with new order", async () => {
   let received: string[] = [];
   const dnd = createDragReorder({
     items,
-    onReorder: async (next) => { received = [...next]; },
+    onReorder: async (next) => {
+      received = [...next];
+    },
   });
 
   dnd.move(2, 0);
@@ -55,7 +57,9 @@ test("createDragReorder: commit rolls back items on onReorder failure", async ()
   const items = cell(["a", "b", "c"]);
   const dnd = createDragReorder({
     items,
-    onReorder: async () => { throw new Error("server error"); },
+    onReorder: async () => {
+      throw new Error("server error");
+    },
   });
 
   dnd.move(0, 2);
@@ -72,7 +76,9 @@ test("createDragReorder: commit is a no-op when order unchanged", async () => {
   let callCount = 0;
   const dnd = createDragReorder({
     items,
-    onReorder: async () => { callCount++; },
+    onReorder: async () => {
+      callCount++;
+    },
   });
 
   const ok = await dnd.commit();
@@ -84,7 +90,9 @@ test("createDragReorder: multiple moves before commit use last pre-move snapshot
   const items = cell(["a", "b", "c"]);
   const dnd = createDragReorder({
     items,
-    onReorder: async () => { throw new Error("fail"); },
+    onReorder: async () => {
+      throw new Error("fail");
+    },
   });
 
   dnd.move(0, 1); // ["b", "a", "c"]

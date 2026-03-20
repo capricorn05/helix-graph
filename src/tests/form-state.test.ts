@@ -13,11 +13,11 @@ test("createFormState: derives validity from field validators", async () => {
     fields: {
       name: {
         initial: "",
-        validate: (v) => v.trim() ? null : "Required",
+        validate: (v) => (v.trim() ? null : "Required"),
       },
       age: {
         initial: 0,
-        validate: (v) => v > 0 ? null : "Must be positive",
+        validate: (v) => (v > 0 ? null : "Must be positive"),
       },
     },
   });
@@ -69,7 +69,7 @@ test("createFormState: reset restores initial values and clears touched/server e
     fields: {
       name: {
         initial: "Alice",
-        validate: (v) => v.length >= 2 ? null : "Too short",
+        validate: (v) => (v.length >= 2 ? null : "Too short"),
       },
     },
   });
@@ -94,7 +94,7 @@ test("createFormState: applyServerErrors overrides validator output", async () =
     fields: {
       name: {
         initial: "",
-        validate: (v) => v.trim() ? null : "Required",
+        validate: (v) => (v.trim() ? null : "Required"),
       },
     },
   });

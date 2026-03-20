@@ -248,9 +248,12 @@ test("effect runs immediately and re-runs on dependency updates", async () => {
   const count = cell(1, { name: "effect-count" });
   const observed: number[] = [];
 
-  const watcher = effect(() => {
-    observed.push(count.get() * 2);
-  }, { name: "double-watcher" });
+  const watcher = effect(
+    () => {
+      observed.push(count.get() * 2);
+    },
+    { name: "double-watcher" },
+  );
 
   assert.equal(watcher.disposed, false);
   assert.deepEqual(observed, [2]);
@@ -282,9 +285,12 @@ test("effect dependency edges reconcile when branches switch", async () => {
   const fallback = cell("B", { name: "effect-fallback" });
   const seen: string[] = [];
 
-  const watcher = effect(() => {
-    seen.push(usePrimary.get() ? primary.get() : fallback.get());
-  }, { name: "branch-watcher" });
+  const watcher = effect(
+    () => {
+      seen.push(usePrimary.get() ? primary.get() : fallback.get());
+    },
+    { name: "branch-watcher" },
+  );
 
   const initialDependencies = runtimeGraph
     .getDependencies(watcher.id)
@@ -319,9 +325,12 @@ test("scope disposal disposes owned effects", async () => {
   const count = cell(1, { name: "scope-count" });
   const observed: number[] = [];
 
-  const watcher = effect(() => {
-    observed.push(count.get());
-  }, { name: "scope-watcher", owner: scope });
+  const watcher = effect(
+    () => {
+      observed.push(count.get());
+    },
+    { name: "scope-watcher", owner: scope },
+  );
 
   count.set(2);
   await flushMicrotasks();
@@ -344,12 +353,15 @@ test("effect returned cleanup is called before each re-run", async () => {
   const count = cell(0, { name: "cleanup-count" });
   const cleanupCalls: number[] = [];
 
-  const watcher = effect(() => {
-    const snapshot = count.get();
-    return () => {
-      cleanupCalls.push(snapshot);
-    };
-  }, { name: "cleanup-watcher" });
+  const watcher = effect(
+    () => {
+      const snapshot = count.get();
+      return () => {
+        cleanupCalls.push(snapshot);
+      };
+    },
+    { name: "cleanup-watcher" },
+  );
 
   // initial run – no cleanup yet
   assert.deepEqual(cleanupCalls, []);
@@ -377,10 +389,15 @@ test("effect returned cleanup is called on dispose even with no re-run", async (
   const count = cell(5, { name: "once-count" });
   let cleaned = false;
 
-  const watcher = effect(() => {
-    count.get();
-    return () => { cleaned = true; };
-  }, { name: "once-watcher" });
+  const watcher = effect(
+    () => {
+      count.get();
+      return () => {
+        cleaned = true;
+      };
+    },
+    { name: "once-watcher" },
+  );
 
   assert.equal(cleaned, false);
   watcher.dispose();
@@ -395,11 +412,14 @@ test("onCleanup() registers teardown within running effect", async () => {
   const flag = cell(false, { name: "oc-flag" });
   const events: string[] = [];
 
-  const watcher = effect(() => {
-    const snapshot = String(flag.get());
-    onCleanup(() => events.push("cleanup:" + snapshot));
-    events.push("run:" + snapshot);
-  }, { name: "oc-watcher" });
+  const watcher = effect(
+    () => {
+      const snapshot = String(flag.get());
+      onCleanup(() => events.push("cleanup:" + snapshot));
+      events.push("run:" + snapshot);
+    },
+    { name: "oc-watcher" },
+  );
 
   assert.deepEqual(events, ["run:false"]);
 
@@ -408,7 +428,12 @@ test("onCleanup() registers teardown within running effect", async () => {
   assert.deepEqual(events, ["run:false", "cleanup:false", "run:true"]);
 
   watcher.dispose();
-  assert.deepEqual(events, ["run:false", "cleanup:false", "run:true", "cleanup:true"]);
+  assert.deepEqual(events, [
+    "run:false",
+    "cleanup:false",
+    "run:true",
+    "cleanup:true",
+  ]);
 
   flag.dispose();
 });
@@ -419,11 +444,14 @@ test("multiple onCleanup() calls in one effect all run", async () => {
   const x = cell(0, { name: "multi-oc-x" });
   const log: string[] = [];
 
-  const watcher = effect(() => {
-    x.get();
-    onCleanup(() => log.push("a"));
-    onCleanup(() => log.push("b"));
-  }, { name: "multi-oc-watcher" });
+  const watcher = effect(
+    () => {
+      x.get();
+      onCleanup(() => log.push("a"));
+      onCleanup(() => log.push("b"));
+    },
+    { name: "multi-oc-watcher" },
+  );
 
   watcher.dispose();
   assert.deepEqual(log, ["a", "b"]);
@@ -433,5 +461,7 @@ test("multiple onCleanup() calls in one effect all run", async () => {
 
 test("onCleanup() outside an effect is a no-op", () => {
   // Should not throw
-  onCleanup(() => { /* ignored */ });
+  onCleanup(() => {
+    /* ignored */
+  });
 });

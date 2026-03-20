@@ -105,7 +105,10 @@ function toNonEmptyString(value: unknown, fallback: string): string {
 }
 
 function sanitizeSummary(value: unknown): string {
-  const normalized = toNonEmptyString(value, "A cozy stay with thoughtfully designed spaces.");
+  const normalized = toNonEmptyString(
+    value,
+    "A cozy stay with thoughtfully designed spaces.",
+  );
   if (normalized.length <= 200) {
     return normalized;
   }
@@ -260,11 +263,23 @@ function mapMongoListingRow(document: Document): MongoAirbnbListingRow {
     imageUrl: toNonEmptyString(document.normalizedImageUrl, ""),
     price: toFiniteNumber(document.normalizedPrice, 0),
     reviewScore: toFiniteNumber(document.normalizedReviewScore, 0),
-    reviewsCount: Math.max(0, Math.floor(toFiniteNumber(document.normalizedReviewsCount, 0))),
-    accommodates: Math.max(1, Math.floor(toFiniteNumber(document.normalizedAccommodates, 1))),
-    bedrooms: Math.max(0, Math.floor(toFiniteNumber(document.normalizedBedrooms, 0))),
+    reviewsCount: Math.max(
+      0,
+      Math.floor(toFiniteNumber(document.normalizedReviewsCount, 0)),
+    ),
+    accommodates: Math.max(
+      1,
+      Math.floor(toFiniteNumber(document.normalizedAccommodates, 1)),
+    ),
+    bedrooms: Math.max(
+      0,
+      Math.floor(toFiniteNumber(document.normalizedBedrooms, 0)),
+    ),
     beds: Math.max(1, Math.floor(toFiniteNumber(document.normalizedBeds, 1))),
-    bathrooms: Math.max(0, Number(toFiniteNumber(document.normalizedBathrooms, 1).toFixed(1))),
+    bathrooms: Math.max(
+      0,
+      Number(toFiniteNumber(document.normalizedBathrooms, 1).toFixed(1)),
+    ),
   };
 }
 
@@ -324,9 +339,10 @@ function buildListingsPageFromRows(
   context: MongoAirbnbContext,
   source: "mongodb" | "offline-sample",
 ): MongoAirbnbListingsPage {
-  const safePage = Number.isFinite(context.page) && context.page > 0
-    ? Math.floor(context.page)
-    : 1;
+  const safePage =
+    Number.isFinite(context.page) && context.page > 0
+      ? Math.floor(context.page)
+      : 1;
   const total = rows.length;
   const totalPages = Math.max(1, Math.ceil(total / context.pageSize));
   const page = Math.min(safePage, totalPages);
@@ -385,12 +401,16 @@ function getOfflineRows(): MongoAirbnbListingRow[] {
       const market =
         MONGO_AIRBNB_MARKET_OPTIONS[index % MONGO_AIRBNB_MARKET_OPTIONS.length];
       const roomType =
-        MONGO_AIRBNB_ROOM_TYPE_OPTIONS[index % MONGO_AIRBNB_ROOM_TYPE_OPTIONS.length];
+        MONGO_AIRBNB_ROOM_TYPE_OPTIONS[
+          index % MONGO_AIRBNB_ROOM_TYPE_OPTIONS.length
+        ];
       const propertyType = propertyTypes[index % propertyTypes.length];
       const hostName = hostNames[index % hostNames.length];
       const accommodates = 2 + (index % 6);
       const bedrooms = Math.max(1, Math.floor(accommodates / 2));
-      const price = Number((95 + (index % 18) * 17 + (index % 5) * 9.5).toFixed(2));
+      const price = Number(
+        (95 + (index % 18) * 17 + (index % 5) * 9.5).toFixed(2),
+      );
       const reviewScore = Number((82 + (index % 19)).toFixed(1));
       const reviewsCount = 18 + (index % 140);
 
@@ -491,9 +511,7 @@ async function ensureMongoCollection(): Promise<Collection<Document> | null> {
     return null;
   }
 
-  return client
-    .db(getMongoDatabaseName())
-    .collection(getMongoCollectionName());
+  return client.db(getMongoDatabaseName()).collection(getMongoCollectionName());
 }
 
 async function countMongoListings(
@@ -593,9 +611,10 @@ async function loadMongoPage(
   try {
     const total = await countMongoListings(collection, context.filters);
     const totalPages = Math.max(1, Math.ceil(total / context.pageSize));
-    const safePage = Number.isFinite(context.page) && context.page > 0
-      ? Math.floor(context.page)
-      : 1;
+    const safePage =
+      Number.isFinite(context.page) && context.page > 0
+        ? Math.floor(context.page)
+        : 1;
     const page = Math.min(safePage, totalPages);
     const rows = await fetchMongoRows(collection, context, page);
 

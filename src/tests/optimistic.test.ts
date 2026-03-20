@@ -73,7 +73,11 @@ test("withOptimistic applies optimistic patches on input lane, then confirm on s
         { op: "setText", targetId: "status", value: "" },
       ],
       confirm: (input, res: { ok: boolean }) => [
-        { op: "setText", targetId: "status", value: res.ok ? "Saved!" : "Failed" },
+        {
+          op: "setText",
+          targetId: "status",
+          value: res.ok ? "Saved!" : "Failed",
+        },
       ],
     },
     async () => ({ ok: true }),
@@ -105,13 +109,20 @@ test("withOptimistic applies rollback patches on failure and re-throws", async (
         { id: 2 },
         {
           apply: (input) => [
-            { op: "setAttr", targetId: "btn", name: "disabled", value: `${input.id}` },
+            {
+              op: "setAttr",
+              targetId: "btn",
+              name: "disabled",
+              value: `${input.id}`,
+            },
           ],
           rollback: () => [
             { op: "setAttr", targetId: "btn", name: "disabled", value: null },
           ],
         },
-        async () => { throw boom; },
+        async () => {
+          throw boom;
+        },
         ctx,
       ),
     (err) => err === boom,
@@ -122,7 +133,10 @@ test("withOptimistic applies rollback patches on failure and re-throws", async (
   assert.equal(applied[1].trigger, "optimistic:rollback");
   assert.equal(applied[1].lane, "input"); // rollback also uses input lane for immediacy
 
-  const rollbackPatch = applied[1].patches[0] as { name: string; value: unknown };
+  const rollbackPatch = applied[1].patches[0] as {
+    name: string;
+    value: unknown;
+  };
   assert.equal(rollbackPatch.name, "disabled");
   assert.equal(rollbackPatch.value, null);
 });
@@ -152,7 +166,7 @@ test("withOptimistic skips schedule when apply returns empty patches", async () 
   await withOptimistic(
     null,
     {
-      apply: () => [],       // no patches
+      apply: () => [], // no patches
       rollback: () => [],
       confirm: () => [],
     },
@@ -203,7 +217,9 @@ test("TransactionLog clear empties all recorded entries", () => {
 test("TransactionLog rollback applies ops via PatchRuntime and clears entries", () => {
   const applied: PatchOp[] = [];
   const runtime = {
-    apply(op: PatchOp) { applied.push(op); },
+    apply(op: PatchOp) {
+      applied.push(op);
+    },
   } as unknown as OptimisticRunContext["patchRuntime"];
 
   const log = new TransactionLog();

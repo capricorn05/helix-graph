@@ -80,7 +80,12 @@ class MockWebSocket {
       if (type === "message") {
         h(Object.assign(new Event("message"), { data }) as Event);
       } else if (type === "close") {
-        h(Object.assign(new Event("close"), { code: code ?? 1000, wasClean: true }) as Event);
+        h(
+          Object.assign(new Event("close"), {
+            code: code ?? 1000,
+            wasClean: true,
+          }) as Event,
+        );
       } else {
         h(new Event(type));
       }
@@ -161,7 +166,9 @@ test("SSE channel: ignores malformed messages", async () => {
     const channel = createInvalidationChannel({
       type: "sse",
       url: "/events",
-      onMessage: () => { called = true; },
+      onMessage: () => {
+        called = true;
+      },
       reconnectMs: 0,
     });
 
@@ -172,7 +179,11 @@ test("SSE channel: ignores malformed messages", async () => {
     handle.emit("message", "not-json");
     handle.emit("message", JSON.stringify({ wrong: "shape" }));
 
-    assert.equal(called, false, "onMessage should not be called for malformed data");
+    assert.equal(
+      called,
+      false,
+      "onMessage should not be called for malformed data",
+    );
 
     channel.disconnect();
   });
@@ -199,7 +210,11 @@ test("SSE channel: onMessage returning false suppresses invalidation", async () 
     const handle = MockEventSource.lastInstance!.handle();
     handle.emit("message", JSON.stringify({ tags: ["x"] }));
 
-    assert.equal(channel.messageCount(), 0, "suppressed message should not increment count");
+    assert.equal(
+      channel.messageCount(),
+      0,
+      "suppressed message should not increment count",
+    );
     assert.equal(messageCount, 1, "onMessage should still have been called");
 
     channel.disconnect();
@@ -214,7 +229,9 @@ test("WebSocket channel: connects and processes invalidation messages", async ()
     const channel = createInvalidationChannel({
       type: "websocket",
       url: "ws://localhost/invalidation",
-      onMessage: (tags) => { receivedTags = tags; },
+      onMessage: (tags) => {
+        receivedTags = tags;
+      },
       reconnectMs: 0,
     });
 
@@ -262,7 +279,11 @@ test("WebSocket channel: does not reconnect after intentional disconnect", async
     handle.close(1006); // abnormal close AFTER disconnect
     await new Promise<void>((r) => setTimeout(r, 20)); // wait past reconnect interval
 
-    assert.equal(connectCount, 1, "should not reconnect after intentional disconnect");
+    assert.equal(
+      connectCount,
+      1,
+      "should not reconnect after intentional disconnect",
+    );
   });
 });
 

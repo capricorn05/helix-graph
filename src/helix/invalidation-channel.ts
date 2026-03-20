@@ -56,7 +56,11 @@ export interface InvalidationChannelOptions {
   reconnectMs?: number;
 }
 
-export type InvalidationChannelStatus = "disconnected" | "connecting" | "connected" | "closed";
+export type InvalidationChannelStatus =
+  | "disconnected"
+  | "connecting"
+  | "connected"
+  | "closed";
 
 export interface InvalidationChannel {
   /** Connect to the invalidation source. Safe to call multiple times. */

@@ -58,7 +58,9 @@ function publishInvalidationTags(tags: string[]): void {
   }
 }
 
-export async function handleInvalidationStream(ctx: RouteContext): Promise<void> {
+export async function handleInvalidationStream(
+  ctx: RouteContext,
+): Promise<void> {
   ctx.response.statusCode = 200;
   ctx.response.setHeader("content-type", "text/event-stream; charset=utf-8");
   ctx.response.setHeader("cache-control", "no-cache, no-transform");
@@ -164,7 +166,9 @@ export async function handleReorderPosts(ctx: RouteContext): Promise<void> {
 
   const rowIds = input.rowIds.map((id) => Number(id));
   if (
-    rowIds.some((id) => !Number.isFinite(id) || id <= 0 || !Number.isInteger(id))
+    rowIds.some(
+      (id) => !Number.isFinite(id) || id <= 0 || !Number.isInteger(id),
+    )
   ) {
     sendJson(ctx, 400, { error: "rowIds must contain positive integer ids" });
     return;

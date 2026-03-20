@@ -20,7 +20,7 @@ export function reconcileKeyed(
   container: Element,
   nextKeys: readonly Key[],
   createNode: (key: string) => Node,
-  options?: ReconcileOptions
+  options?: ReconcileOptions,
 ): ReconcileResult {
   const keyAttr = options?.keyAttribute ?? "data-hx-key";
   const existingChildren = Array.from(container.children);
@@ -67,7 +67,7 @@ export function reconcileKeyed(
     keys: normalizedNext,
     inserted,
     removed,
-    moved
+    moved,
   };
 }
 
@@ -82,8 +82,14 @@ export function reconcileWindowedKeyed(
   createNode: (key: string) => Node,
   options?: ReconcileOptions,
 ): ReconcileResult {
-  const start = Math.max(0, Math.min(allKeys.length, Math.floor(window.startIndex)));
-  const end = Math.max(start, Math.min(allKeys.length, Math.floor(window.endIndex)));
+  const start = Math.max(
+    0,
+    Math.min(allKeys.length, Math.floor(window.startIndex)),
+  );
+  const end = Math.max(
+    start,
+    Math.min(allKeys.length, Math.floor(window.endIndex)),
+  );
   const visible = allKeys.slice(start, end);
   return reconcileKeyed(container, visible, createNode, options);
 }

@@ -32,21 +32,96 @@ export interface CreateUserInput {
 
 const seedUsers: User[] = [
   { id: 1, name: "Ava Kim", email: "ava.kim@example.com", status: "active" },
-  { id: 2, name: "Noah Patel", email: "noah.patel@example.com", status: "pending" },
-  { id: 3, name: "Maya Chen", email: "maya.chen@example.com", status: "active" },
-  { id: 4, name: "Ethan Ruiz", email: "ethan.ruiz@example.com", status: "active" },
-  { id: 5, name: "Liam Park", email: "liam.park@example.com", status: "pending" },
-  { id: 6, name: "Sofia Bell", email: "sofia.bell@example.com", status: "active" },
-  { id: 7, name: "Owen Brooks", email: "owen.brooks@example.com", status: "active" },
-  { id: 8, name: "Ivy Torres", email: "ivy.torres@example.com", status: "pending" },
-  { id: 9, name: "Leo Foster", email: "leo.foster@example.com", status: "active" },
-  { id: 10, name: "Nora Diaz", email: "nora.diaz@example.com", status: "pending" },
-  { id: 11, name: "Caleb Shah", email: "caleb.shah@example.com", status: "active" },
-  { id: 12, name: "Aria Wells", email: "aria.wells@example.com", status: "active" },
-  { id: 13, name: "Elena Fox", email: "elena.fox@example.com", status: "pending" },
-  { id: 14, name: "Milo Stone", email: "milo.stone@example.com", status: "active" },
-  { id: 15, name: "Zoe Grant", email: "zoe.grant@example.com", status: "active" },
-  { id: 16, name: "Ruby Lane", email: "ruby.lane@example.com", status: "pending" }
+  {
+    id: 2,
+    name: "Noah Patel",
+    email: "noah.patel@example.com",
+    status: "pending",
+  },
+  {
+    id: 3,
+    name: "Maya Chen",
+    email: "maya.chen@example.com",
+    status: "active",
+  },
+  {
+    id: 4,
+    name: "Ethan Ruiz",
+    email: "ethan.ruiz@example.com",
+    status: "active",
+  },
+  {
+    id: 5,
+    name: "Liam Park",
+    email: "liam.park@example.com",
+    status: "pending",
+  },
+  {
+    id: 6,
+    name: "Sofia Bell",
+    email: "sofia.bell@example.com",
+    status: "active",
+  },
+  {
+    id: 7,
+    name: "Owen Brooks",
+    email: "owen.brooks@example.com",
+    status: "active",
+  },
+  {
+    id: 8,
+    name: "Ivy Torres",
+    email: "ivy.torres@example.com",
+    status: "pending",
+  },
+  {
+    id: 9,
+    name: "Leo Foster",
+    email: "leo.foster@example.com",
+    status: "active",
+  },
+  {
+    id: 10,
+    name: "Nora Diaz",
+    email: "nora.diaz@example.com",
+    status: "pending",
+  },
+  {
+    id: 11,
+    name: "Caleb Shah",
+    email: "caleb.shah@example.com",
+    status: "active",
+  },
+  {
+    id: 12,
+    name: "Aria Wells",
+    email: "aria.wells@example.com",
+    status: "active",
+  },
+  {
+    id: 13,
+    name: "Elena Fox",
+    email: "elena.fox@example.com",
+    status: "pending",
+  },
+  {
+    id: 14,
+    name: "Milo Stone",
+    email: "milo.stone@example.com",
+    status: "active",
+  },
+  {
+    id: 15,
+    name: "Zoe Grant",
+    email: "zoe.grant@example.com",
+    status: "active",
+  },
+  {
+    id: 16,
+    name: "Ruby Lane",
+    email: "ruby.lane@example.com",
+    status: "pending",
+  },
 ];
 
 const usersStore: User[] = [...seedUsers];
@@ -60,7 +135,7 @@ export function listUsersPage(
   page: number,
   pageSize: number,
   sortCol: SortColumn,
-  sortDir: SortDirection
+  sortDir: SortDirection,
 ): UsersPage {
   const sorted = [...usersStore].sort((left, right) => {
     const direction = sortDir === "asc" ? 1 : -1;
@@ -82,7 +157,7 @@ export function listUsersPage(
     total,
     totalPages,
     sortCol,
-    sortDir
+    sortDir,
   };
 }
 
@@ -115,8 +190,7 @@ export function suggestUsers(query: string, limit = 8): UserSuggestion[] {
     return [];
   }
 
-  const safeLimit =
-    Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 8;
+  const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 8;
 
   return usersStore
     .map((user) => ({
@@ -149,7 +223,7 @@ export function createUser(input: CreateUserInput): User {
     id: nextId,
     name: input.name,
     email: input.email,
-    status: "pending"
+    status: "pending",
   };
   nextId += 1;
   usersStore.push(user);
@@ -179,7 +253,10 @@ export interface UpdateUserInput {
   status?: "active" | "pending";
 }
 
-export function updateUser(id: number, input: UpdateUserInput): User | undefined {
+export function updateUser(
+  id: number,
+  input: UpdateUserInput,
+): User | undefined {
   const user = usersStore.find((u) => u.id === id);
   if (user) {
     if (input.name) user.name = input.name;
@@ -199,6 +276,6 @@ export function getUserStats(): UserStats {
   return {
     total: usersStore.length,
     active: usersStore.filter((u) => u.status === "active").length,
-    pending: usersStore.filter((u) => u.status === "pending").length
+    pending: usersStore.filter((u) => u.status === "pending").length,
   };
 }

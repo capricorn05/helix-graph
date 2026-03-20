@@ -755,9 +755,21 @@ function applyUserDetailDrawerLoading(
     lane: "input",
     nodes: ["user-detail-drawer-panel"],
     patches: [
-      { op: "setText", targetId: "user-detail-drawer-id", value: String(userId) },
-      { op: "setText", targetId: "user-detail-drawer-name", value: "Loading..." },
-      { op: "setText", targetId: "user-detail-drawer-email", value: "Loading..." },
+      {
+        op: "setText",
+        targetId: "user-detail-drawer-id",
+        value: String(userId),
+      },
+      {
+        op: "setText",
+        targetId: "user-detail-drawer-name",
+        value: "Loading...",
+      },
+      {
+        op: "setText",
+        targetId: "user-detail-drawer-email",
+        value: "Loading...",
+      },
       { op: "setText", targetId: "user-detail-drawer-status", value: "-" },
       {
         op: "setAttr",
@@ -786,8 +798,16 @@ function applyUserDetailDrawerError(
     lane: "network",
     nodes: ["user-detail-drawer-panel"],
     patches: [
-      { op: "setText", targetId: "user-detail-drawer-id", value: String(userId) },
-      { op: "setText", targetId: "user-detail-drawer-name", value: "Unavailable" },
+      {
+        op: "setText",
+        targetId: "user-detail-drawer-id",
+        value: String(userId),
+      },
+      {
+        op: "setText",
+        targetId: "user-detail-drawer-name",
+        value: "Unavailable",
+      },
       { op: "setText", targetId: "user-detail-drawer-email", value: "-" },
       { op: "setText", targetId: "user-detail-drawer-status", value: "-" },
       {
@@ -816,10 +836,22 @@ function applyUserDetailDrawerData(
     lane: "network",
     nodes: ["user-detail-drawer-panel"],
     patches: [
-      { op: "setText", targetId: "user-detail-drawer-id", value: String(user.id) },
+      {
+        op: "setText",
+        targetId: "user-detail-drawer-id",
+        value: String(user.id),
+      },
       { op: "setText", targetId: "user-detail-drawer-name", value: user.name },
-      { op: "setText", targetId: "user-detail-drawer-email", value: user.email },
-      { op: "setText", targetId: "user-detail-drawer-status", value: user.status },
+      {
+        op: "setText",
+        targetId: "user-detail-drawer-email",
+        value: user.email,
+      },
+      {
+        op: "setText",
+        targetId: "user-detail-drawer-status",
+        value: user.status,
+      },
       {
         op: "setAttr",
         targetId: "user-detail-drawer-status",
@@ -868,11 +900,7 @@ export async function onUserDetailOpen({
     const user = (await response.json()) as UserDetailApiResponse;
     applyUserDetailDrawerData(runtime, user);
   } catch {
-    applyUserDetailDrawerError(
-      runtime,
-      rowId,
-      "Could not load user details.",
-    );
+    applyUserDetailDrawerError(runtime, rowId, "Could not load user details.");
   }
 }
 

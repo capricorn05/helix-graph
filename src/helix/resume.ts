@@ -223,11 +223,14 @@ function installClientOnlyMounts<TRuntime>(
     }
 
     if (prefersIdle || !visibilityTrigger) {
-      const idleTrigger = createIdleTrigger(() => {
-        mountElement(element);
-      }, {
-        timeout: idleTimeoutMs,
-      });
+      const idleTrigger = createIdleTrigger(
+        () => {
+          mountElement(element);
+        },
+        {
+          timeout: idleTimeoutMs,
+        },
+      );
       pendingIdleTriggers.set(element, idleTrigger);
       return;
     }

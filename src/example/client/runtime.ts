@@ -189,7 +189,9 @@ export function createClientViewScope(): ReactiveScope {
   });
 }
 
-export function rotateClientViewScope(runtime: HelixClientRuntime): ReactiveScope {
+export function rotateClientViewScope(
+  runtime: HelixClientRuntime,
+): ReactiveScope {
   runtime.viewScope.dispose();
 
   const nextScope = createClientViewScope();

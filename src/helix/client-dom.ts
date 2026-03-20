@@ -143,10 +143,7 @@ export function bindTargetTextValue<TElement extends TextValueElement>(
  * Binds a target input/select/textarea and emits custom value types.
  * Use this for checkbox/radio/file/select-multiple model bindings.
  */
-export function bindTargetValue<
-  TElement extends TextValueElement,
-  TValue,
->(
+export function bindTargetValue<TElement extends TextValueElement, TValue>(
   options: BindTargetValueOptions<TElement, TValue>,
 ): ClientDomController | null {
   const scope = createDomTargetScope(options.root);
@@ -180,7 +177,11 @@ export function readRadioGroupValue(
 
   const radios = root.querySelectorAll('input[type="radio"]');
   for (const node of radios) {
-    if (node instanceof HTMLInputElement && node.name === element.name && node.checked) {
+    if (
+      node instanceof HTMLInputElement &&
+      node.name === element.name &&
+      node.checked
+    ) {
       return node.value;
     }
   }
@@ -192,9 +193,7 @@ export function readFileList(element: HTMLInputElement): FileList | null {
   return element.files;
 }
 
-export function readSelectMultipleValues(
-  element: HTMLSelectElement,
-): string[] {
+export function readSelectMultipleValues(element: HTMLSelectElement): string[] {
   if (!element.multiple) {
     return [element.value];
   }

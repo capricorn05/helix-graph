@@ -18,7 +18,9 @@ function setupDom(): JSDOM {
 }
 
 function teardownDom(): void {
-  const panel = (globalThis as any).document?.getElementById("__helix_devtools__");
+  const panel = (globalThis as any).document?.getElementById(
+    "__helix_devtools__",
+  );
   panel?.remove();
   delete (globalThis as any).document;
   delete (globalThis as any).window;
@@ -30,10 +32,18 @@ test("HelixDevtools topology tab renders scope with owned cells and effects", as
 
   const scope = createReactiveScope({ name: "my-scope" });
   const count = cell(0, { name: "count", owner: scope });
-  const doubled = derived(() => count.get() * 2, { name: "doubled", owner: scope });
+  const doubled = derived(() => count.get() * 2, {
+    name: "doubled",
+    owner: scope,
+  });
   // Track dependencies by reading inside an effect
   let lastDoubled = 0;
-  const fx = effect(() => { lastDoubled = doubled.get(); }, { name: "doubler-fx", owner: scope });
+  const fx = effect(
+    () => {
+      lastDoubled = doubled.get();
+    },
+    { name: "doubler-fx", owner: scope },
+  );
 
   // Flush microtasks so effect subscribes
   await new Promise((resolve) => queueMicrotask(resolve as () => void));
@@ -42,11 +52,15 @@ test("HelixDevtools topology tab renders scope with owned cells and effects", as
   devtools.mount();
 
   // Switch to topology tab
-  const topologyBtn = (globalThis as any).document.getElementById("__helix_topology_tab__");
+  const topologyBtn = (globalThis as any).document.getElementById(
+    "__helix_topology_tab__",
+  );
   assert.ok(topologyBtn, "topology tab button should exist");
   topologyBtn.click();
 
-  const topologyList = (globalThis as any).document.getElementById("__helix_topology_list__");
+  const topologyList = (globalThis as any).document.getElementById(
+    "__helix_topology_list__",
+  );
   assert.ok(topologyList, "topology list container should exist");
 
   const html = topologyList.innerHTML;
@@ -54,8 +68,14 @@ test("HelixDevtools topology tab renders scope with owned cells and effects", as
   assert.ok(html.includes("my-scope"), "scope label should be in topology");
   // Owned nodes should appear
   assert.ok(html.includes("count"), "cell label should appear under scope");
-  assert.ok(html.includes("doubled"), "derived label should appear under scope");
-  assert.ok(html.includes("doubler-fx"), "effect label should appear under scope");
+  assert.ok(
+    html.includes("doubled"),
+    "derived label should appear under scope",
+  );
+  assert.ok(
+    html.includes("doubler-fx"),
+    "effect label should appear under scope",
+  );
 
   scope.dispose();
   teardownDom();
@@ -69,17 +89,26 @@ test("HelixDevtools topology tab shows dependency links for effects", async () =
 
   const scope = createReactiveScope({ name: "dep-scope" });
   const name = cell("Alice", { name: "name", owner: scope });
-  const fx = effect(() => { void name.get(); }, { name: "name-watcher", owner: scope });
+  const fx = effect(
+    () => {
+      void name.get();
+    },
+    { name: "name-watcher", owner: scope },
+  );
 
   await new Promise((resolve) => queueMicrotask(resolve as () => void));
 
   const devtools = new HelixDevtools({ startOpen: false });
   devtools.mount();
 
-  const topologyBtn = (globalThis as any).document.getElementById("__helix_topology_tab__");
+  const topologyBtn = (globalThis as any).document.getElementById(
+    "__helix_topology_tab__",
+  );
   topologyBtn?.click();
 
-  const topologyList = (globalThis as any).document.getElementById("__helix_topology_list__");
+  const topologyList = (globalThis as any).document.getElementById(
+    "__helix_topology_list__",
+  );
   const html = topologyList?.innerHTML ?? "";
 
   // The effect should list "name" as a dependency
@@ -98,10 +127,14 @@ test("HelixDevtools topology tab shows empty message when no nodes", () => {
   const devtools = new HelixDevtools({ startOpen: false });
   devtools.mount();
 
-  const topologyBtn = (globalThis as any).document.getElementById("__helix_topology_tab__");
+  const topologyBtn = (globalThis as any).document.getElementById(
+    "__helix_topology_tab__",
+  );
   topologyBtn?.click();
 
-  const topologyList = (globalThis as any).document.getElementById("__helix_topology_list__");
+  const topologyList = (globalThis as any).document.getElementById(
+    "__helix_topology_list__",
+  );
   const html = topologyList?.innerHTML ?? "";
   assert.ok(
     html.includes("No reactive nodes"),
@@ -122,10 +155,14 @@ test("HelixDevtools graph tab groups nodes by type", () => {
   const devtools = new HelixDevtools({ startOpen: false });
   devtools.mount();
 
-  const graphBtn = (globalThis as any).document.getElementById("__helix_graph_tab__");
+  const graphBtn = (globalThis as any).document.getElementById(
+    "__helix_graph_tab__",
+  );
   graphBtn?.click();
 
-  const nodesList = (globalThis as any).document.getElementById("__helix_nodes_list__");
+  const nodesList = (globalThis as any).document.getElementById(
+    "__helix_nodes_list__",
+  );
   const html = nodesList?.innerHTML ?? "";
   assert.ok(html.includes("CellNode"), "CellNode group should appear");
   assert.ok(html.includes("DerivedNode"), "DerivedNode group should appear");

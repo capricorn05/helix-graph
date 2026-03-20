@@ -74,62 +74,67 @@ export function createAutocomplete<T>(
   // Cache: query string → results
   const cache = new Map<string, T[]>();
 
-  const fx = effect(() => {
-    const query = queryCell.get();
+  const fx = effect(
+    () => {
+      const query = queryCell.get();
 
-    if (query.length < minLength) {
-      untracked(() => {
-        resultsCell.set([]);
-        statusCell.set("idle");
-      });
-      return;
-    }
-
-    // Check cache before debouncing
-    if (cache.has(query)) {
-      const cached = cache.get(query)!;
-      untracked(() => {
-        resultsCell.set(cached);
-        statusCell.set("ready");
-      });
-      return;
-    }
-
-    untracked(() => statusCell.set("loading"));
-
-    // Each time the effect runs with a new query, `cancelled` is set to true
-    // by the onCleanup teardown, preventing stale fetch responses from landing.
-    let cancelled = false;
-    onCleanup(() => { cancelled = true; });
-
-    const timerId = setTimeout(() => {
-      options
-        .fetch(query)
-        .then((items) => {
-          if (cancelled) return;
-
-          // Evict oldest entry when cache is full
-          if (cache.size >= maxCacheSize) {
-            const oldest = cache.keys().next().value;
-            if (oldest !== undefined) {
-              cache.delete(oldest);
-            }
-          }
-
-          cache.set(query, items);
-          resultsCell.set(items);
-          statusCell.set("ready");
-        })
-        .catch(() => {
-          if (cancelled) return;
+      if (query.length < minLength) {
+        untracked(() => {
           resultsCell.set([]);
-          statusCell.set("error");
+          statusCell.set("idle");
         });
-    }, debounceMs);
+        return;
+      }
 
-    // Cancel the pending debounce timer if the effect re-runs before it fires.
-    onCleanup(() => clearTimeout(timerId));
-  }, { owner: options.owner });
+      // Check cache before debouncing
+      if (cache.has(query)) {
+        const cached = cache.get(query)!;
+        untracked(() => {
+          resultsCell.set(cached);
+          statusCell.set("ready");
+        });
+        return;
+      }
+
+      untracked(() => statusCell.set("loading"));
+
+      // Each time the effect runs with a new query, `cancelled` is set to true
+      // by the onCleanup teardown, preventing stale fetch responses from landing.
+      let cancelled = false;
+      onCleanup(() => {
+        cancelled = true;
+      });
+
+      const timerId = setTimeout(() => {
+        options
+          .fetch(query)
+          .then((items) => {
+            if (cancelled) return;
+
+            // Evict oldest entry when cache is full
+            if (cache.size >= maxCacheSize) {
+              const oldest = cache.keys().next().value;
+              if (oldest !== undefined) {
+                cache.delete(oldest);
+              }
+            }
+
+            cache.set(query, items);
+            resultsCell.set(items);
+            statusCell.set("ready");
+          })
+          .catch(() => {
+            if (cancelled) return;
+            resultsCell.set([]);
+            statusCell.set("error");
+          });
+      }, debounceMs);
+
+      // Cancel the pending debounce timer if the effect re-runs before it fires.
+      onCleanup(() => clearTimeout(timerId));
+    },
+    { owner: options.owner },
+  );
 
   return {
     query: queryCell,

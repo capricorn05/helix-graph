@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { JSDOM } from "jsdom";
-import {
-  reconcileKeyed,
-  reconcileWindowedKeyed,
-} from "../helix/reconciler.js";
+import { reconcileKeyed, reconcileWindowedKeyed } from "../helix/reconciler.js";
 
 function installElementGlobal(dom: JSDOM): void {
   (globalThis as unknown as { Element: typeof dom.window.Element }).Element =
@@ -57,7 +54,9 @@ test("reconcileWindowedKeyed only renders the visible key window", () => {
 
   assert.deepEqual(first.keys, ["k1", "k2", "k3"]);
   assert.deepEqual(
-    Array.from(container.children).map((child) => child.getAttribute("data-hx-key")),
+    Array.from(container.children).map((child) =>
+      child.getAttribute("data-hx-key"),
+    ),
     ["k1", "k2", "k3"],
   );
 
@@ -74,7 +73,9 @@ test("reconcileWindowedKeyed only renders the visible key window", () => {
 
   assert.deepEqual(second.keys, ["k3", "k4", "k5"]);
   assert.deepEqual(
-    Array.from(container.children).map((child) => child.getAttribute("data-hx-key")),
+    Array.from(container.children).map((child) =>
+      child.getAttribute("data-hx-key"),
+    ),
     ["k3", "k4", "k5"],
   );
 });

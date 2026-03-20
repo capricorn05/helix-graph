@@ -415,7 +415,9 @@ function mountSearchPageEnhancements(root: HTMLElement): PrimitiveController[] {
         minLength: 1,
         fetch: async (query) => {
           const params = new URLSearchParams({ q: query });
-          const response = await fetch(`/api/users/suggest?${params.toString()}`);
+          const response = await fetch(
+            `/api/users/suggest?${params.toString()}`,
+          );
           if (!response.ok) {
             throw new Error(
               `Search suggestion request failed with status ${response.status}`,

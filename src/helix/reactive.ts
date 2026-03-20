@@ -274,7 +274,9 @@ class CellImpl<T> implements Cell<T> {
       },
     });
 
-    this.ownerCleanup = bindOwner(options?.owner, this.id, () => this.dispose());
+    this.ownerCleanup = bindOwner(options?.owner, this.id, () =>
+      this.dispose(),
+    );
   }
 
   get disposed(): boolean {
@@ -347,7 +349,12 @@ class CellImpl<T> implements Cell<T> {
   }
 
   subscribeDependency(notify: () => void): () => void {
-    assertActive(this.disposedState, "cell", this.id, "subscribe to dependency of");
+    assertActive(
+      this.disposedState,
+      "cell",
+      this.id,
+      "subscribe to dependency of",
+    );
 
     this.dependencySubscribers.add(notify);
     return () => {
@@ -381,7 +388,10 @@ class DerivedImpl<T> implements Derived<T>, Tracker {
   private readonly equals: (next: T, previous: T) => boolean;
   private readonly subscribers = new Set<Subscriber<T>>();
   private readonly dependencySubscribers = new Set<() => void>();
-  private readonly dependencies = new Map<string, OwnedDependencySubscription>();
+  private readonly dependencies = new Map<
+    string,
+    OwnedDependencySubscription
+  >();
   private dirty = true;
   private hasValue = false;
   private value!: T;
@@ -403,7 +413,9 @@ class DerivedImpl<T> implements Derived<T>, Tracker {
       },
     });
 
-    this.ownerCleanup = bindOwner(options?.owner, this.id, () => this.dispose());
+    this.ownerCleanup = bindOwner(options?.owner, this.id, () =>
+      this.dispose(),
+    );
   }
 
   get disposed(): boolean {
@@ -446,7 +458,12 @@ class DerivedImpl<T> implements Derived<T>, Tracker {
   };
 
   registerDependency(source: DependencySource): void {
-    assertActive(this.disposedState, "derived", this.id, "track dependencies for");
+    assertActive(
+      this.disposedState,
+      "derived",
+      this.id,
+      "track dependencies for",
+    );
 
     if (this.dependencies.has(source.id)) {
       return;
@@ -563,7 +580,10 @@ class EffectImpl implements Effect, Tracker {
   readonly id: string;
   readonly name?: string;
   private readonly runEffect: () => void | (() => void);
-  private readonly dependencies = new Map<string, OwnedDependencySubscription>();
+  private readonly dependencies = new Map<
+    string,
+    OwnedDependencySubscription
+  >();
   private dirty = true;
   private scheduled = false;
   private disposedState = false;
@@ -584,7 +604,9 @@ class EffectImpl implements Effect, Tracker {
       },
     });
 
-    this.ownerCleanup = bindOwner(options?.owner, this.id, () => this.dispose());
+    this.ownerCleanup = bindOwner(options?.owner, this.id, () =>
+      this.dispose(),
+    );
     this.execute();
   }
 
@@ -593,7 +615,12 @@ class EffectImpl implements Effect, Tracker {
   }
 
   registerDependency(source: DependencySource): void {
-    assertActive(this.disposedState, "effect", this.id, "track dependencies for");
+    assertActive(
+      this.disposedState,
+      "effect",
+      this.id,
+      "track dependencies for",
+    );
 
     if (this.dependencies.has(source.id)) {
       return;
@@ -638,7 +665,11 @@ class EffectImpl implements Effect, Tracker {
     if (this.pendingCleanup) {
       const cleanup = this.pendingCleanup;
       this.pendingCleanup = null;
-      try { cleanup(); } catch { /* best-effort */ }
+      try {
+        cleanup();
+      } catch {
+        /* best-effort */
+      }
     }
 
     this.cleanupDependencies();
@@ -648,7 +679,12 @@ class EffectImpl implements Effect, Tracker {
     activeTracker = this;
     currentCleanupRegistrar = (fn) => {
       const prev = this.pendingCleanup;
-      this.pendingCleanup = prev ? () => { prev(); fn(); } : fn;
+      this.pendingCleanup = prev
+        ? () => {
+            prev();
+            fn();
+          }
+        : fn;
     };
     try {
       const teardown = this.runEffect();
@@ -680,7 +716,11 @@ class EffectImpl implements Effect, Tracker {
     if (this.pendingCleanup) {
       const cleanup = this.pendingCleanup;
       this.pendingCleanup = null;
-      try { cleanup(); } catch { /* best-effort */ }
+      try {
+        cleanup();
+      } catch {
+        /* best-effort */
+      }
     }
     this.cleanupDependencies();
 

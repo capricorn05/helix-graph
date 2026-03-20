@@ -45,15 +45,19 @@ export class VirtualList {
       endIndex: 0,
       visibleCount: 0,
       offsetTop: 0,
-      totalCount: 0
+      totalCount: 0,
     };
     this.scrollListener = () => this.updateWindow();
   }
 
   attach(): void {
-    this.container = document.querySelector<HTMLElement>(this.config.containerSelector);
+    this.container = document.querySelector<HTMLElement>(
+      this.config.containerSelector,
+    );
     if (!this.container) {
-      throw new Error(`Virtual list container not found: ${this.config.containerSelector}`);
+      throw new Error(
+        `Virtual list container not found: ${this.config.containerSelector}`,
+      );
     }
     this.container.addEventListener("scroll", this.scrollListener);
     this.updateWindow();
@@ -70,9 +74,14 @@ export class VirtualList {
 
     const scrollTop = this.container.scrollTop;
     const containerHeight = this.container.clientHeight;
-    const visibleCount = Math.ceil(containerHeight / this.config.itemHeight) + this.config.bufferSize * 2;
+    const visibleCount =
+      Math.ceil(containerHeight / this.config.itemHeight) +
+      this.config.bufferSize * 2;
 
-    const startIndex = Math.max(0, Math.floor(scrollTop / this.config.itemHeight) - this.config.bufferSize);
+    const startIndex = Math.max(
+      0,
+      Math.floor(scrollTop / this.config.itemHeight) - this.config.bufferSize,
+    );
     const endIndex = startIndex + visibleCount;
 
     this.state = {
@@ -80,7 +89,7 @@ export class VirtualList {
       endIndex,
       visibleCount,
       offsetTop: startIndex * this.config.itemHeight,
-      totalCount: this.state.totalCount
+      totalCount: this.state.totalCount,
     };
     this.config.onChange?.(this.getWindow());
   }
@@ -116,15 +125,19 @@ export class VirtualGrid {
       endIndex: 0,
       visibleCount: 0,
       offsetTop: 0,
-      totalCount: 0
+      totalCount: 0,
     };
     this.scrollListener = () => this.updateWindow();
   }
 
   attach(): void {
-    this.container = document.querySelector<HTMLElement>(this.config.containerSelector);
+    this.container = document.querySelector<HTMLElement>(
+      this.config.containerSelector,
+    );
     if (!this.container) {
-      throw new Error(`Virtual grid container not found: ${this.config.containerSelector}`);
+      throw new Error(
+        `Virtual grid container not found: ${this.config.containerSelector}`,
+      );
     }
     this.container.addEventListener("scroll", this.scrollListener);
     this.updateWindow();
@@ -142,10 +155,15 @@ export class VirtualGrid {
     const scrollTop = this.container.scrollTop;
     const containerHeight = this.container.clientHeight;
     const rowHeight = this.config.itemHeight;
-    const visibleRows = Math.ceil(containerHeight / rowHeight) + this.config.bufferSize * 2;
+    const visibleRows =
+      Math.ceil(containerHeight / rowHeight) + this.config.bufferSize * 2;
     const visibleCount = visibleRows * this.config.columnCount;
 
-    const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) * this.config.columnCount - this.config.bufferSize * this.config.columnCount);
+    const startIndex = Math.max(
+      0,
+      Math.floor(scrollTop / rowHeight) * this.config.columnCount -
+        this.config.bufferSize * this.config.columnCount,
+    );
     const endIndex = startIndex + visibleCount;
 
     this.state = {
@@ -153,7 +171,7 @@ export class VirtualGrid {
       endIndex,
       visibleCount,
       offsetTop: Math.floor(startIndex / this.config.columnCount) * rowHeight,
-      totalCount: this.state.totalCount
+      totalCount: this.state.totalCount,
     };
     this.config.onChange?.(this.getWindow());
   }
@@ -212,7 +230,10 @@ export function createReactiveVirtualList(
   config: VirtualListConfig,
   options?: { owner?: ReactiveOwner },
 ): ReactiveVirtualList {
-  const windowCell = makeCell<WindowState>({ ...defaultWindowState }, { owner: options?.owner });
+  const windowCell = makeCell<WindowState>(
+    { ...defaultWindowState },
+    { owner: options?.owner },
+  );
   const list = new VirtualList({
     ...config,
     onChange: (state) => windowCell.set({ ...state }),
@@ -237,7 +258,10 @@ export function createReactiveVirtualGrid(
   config: VirtualGridConfig,
   options?: { owner?: ReactiveOwner },
 ): ReactiveVirtualGrid {
-  const windowCell = makeCell<WindowState>({ ...defaultWindowState }, { owner: options?.owner });
+  const windowCell = makeCell<WindowState>(
+    { ...defaultWindowState },
+    { owner: options?.owner },
+  );
   const grid = new VirtualGrid({
     ...config,
     onChange: (state) => windowCell.set({ ...state }),

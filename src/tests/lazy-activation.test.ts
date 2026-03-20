@@ -30,17 +30,20 @@ class MockIntersectionObserver {
   }
 
   emit(entry: Partial<IntersectionObserverEntry> & { target: Element }): void {
-    this.callback([
-      {
-        isIntersecting: false,
-        intersectionRatio: 0,
-        boundingClientRect: {} as DOMRectReadOnly,
-        intersectionRect: {} as DOMRectReadOnly,
-        rootBounds: null,
-        time: 0,
-        ...entry,
-      },
-    ] as IntersectionObserverEntry[], this as unknown as IntersectionObserver);
+    this.callback(
+      [
+        {
+          isIntersecting: false,
+          intersectionRatio: 0,
+          boundingClientRect: {} as DOMRectReadOnly,
+          intersectionRect: {} as DOMRectReadOnly,
+          rootBounds: null,
+          time: 0,
+          ...entry,
+        },
+      ] as IntersectionObserverEntry[],
+      this as unknown as IntersectionObserver,
+    );
   }
 }
 
@@ -63,7 +66,10 @@ test("createVisibilityTrigger: invokes callback when element becomes visible", (
     });
 
     assert.equal(seen, element);
-    assert.equal(MockIntersectionObserver.lastInstance!.observed.has(element), false);
+    assert.equal(
+      MockIntersectionObserver.lastInstance!.observed.has(element),
+      false,
+    );
   } finally {
     if (original === undefined) delete (globalThis as any).IntersectionObserver;
     else (globalThis as any).IntersectionObserver = original;
@@ -78,16 +84,28 @@ test("createVisibilityTrigger: once=false keeps observing after visibility", () 
     const element = { nodeType: 1 } as Element;
     let count = 0;
 
-    const trigger = createVisibilityTrigger(() => {
-      count++;
-    }, { once: false });
+    const trigger = createVisibilityTrigger(
+      () => {
+        count++;
+      },
+      { once: false },
+    );
 
     trigger.observe(element);
-    MockIntersectionObserver.lastInstance!.emit({ target: element, isIntersecting: true });
-    MockIntersectionObserver.lastInstance!.emit({ target: element, isIntersecting: true });
+    MockIntersectionObserver.lastInstance!.emit({
+      target: element,
+      isIntersecting: true,
+    });
+    MockIntersectionObserver.lastInstance!.emit({
+      target: element,
+      isIntersecting: true,
+    });
 
     assert.equal(count, 2);
-    assert.equal(MockIntersectionObserver.lastInstance!.observed.has(element), true);
+    assert.equal(
+      MockIntersectionObserver.lastInstance!.observed.has(element),
+      true,
+    );
   } finally {
     if (original === undefined) delete (globalThis as any).IntersectionObserver;
     else (globalThis as any).IntersectionObserver = original;
@@ -103,10 +121,16 @@ test("createVisibilityTrigger: unobserve and disconnect delegate to observer", (
     const trigger = createVisibilityTrigger(() => {});
 
     trigger.observe(element);
-    assert.equal(MockIntersectionObserver.lastInstance!.observed.has(element), true);
+    assert.equal(
+      MockIntersectionObserver.lastInstance!.observed.has(element),
+      true,
+    );
 
     trigger.unobserve(element);
-    assert.equal(MockIntersectionObserver.lastInstance!.observed.has(element), false);
+    assert.equal(
+      MockIntersectionObserver.lastInstance!.observed.has(element),
+      false,
+    );
 
     trigger.disconnect();
     assert.equal(MockIntersectionObserver.lastInstance!.disconnected, true);
@@ -123,7 +147,9 @@ test("createIdleTrigger: uses requestIdleCallback when available", async () => {
   let cancelledHandle: number | null = null;
   let storedCallback: ((deadline?: IdleDeadline) => void) | null = null;
 
-  (globalThis as any).requestIdleCallback = (cb: (deadline?: IdleDeadline) => void) => {
+  (globalThis as any).requestIdleCallback = (
+    cb: (deadline?: IdleDeadline) => void,
+  ) => {
     storedCallback = cb;
     return 42;
   };
@@ -133,9 +159,12 @@ test("createIdleTrigger: uses requestIdleCallback when available", async () => {
 
   try {
     let called = false;
-    const trigger = createIdleTrigger(() => {
-      called = true;
-    }, { timeout: 100 });
+    const trigger = createIdleTrigger(
+      () => {
+        called = true;
+      },
+      { timeout: 100 },
+    );
 
     assert.ok(storedCallback);
     const idleCallback = storedCallback as (deadline?: IdleDeadline) => void;
@@ -145,10 +174,12 @@ test("createIdleTrigger: uses requestIdleCallback when available", async () => {
     trigger.cancel();
     assert.equal(cancelledHandle, 42);
   } finally {
-    if (originalRic === undefined) delete (globalThis as any).requestIdleCallback;
+    if (originalRic === undefined)
+      delete (globalThis as any).requestIdleCallback;
     else (globalThis as any).requestIdleCallback = originalRic;
 
-    if (originalCancel === undefined) delete (globalThis as any).cancelIdleCallback;
+    if (originalCancel === undefined)
+      delete (globalThis as any).cancelIdleCallback;
     else (globalThis as any).cancelIdleCallback = originalCancel;
   }
 });
@@ -162,15 +193,20 @@ test("createIdleTrigger: falls back to setTimeout when requestIdleCallback is un
   try {
     let called = false;
     await new Promise<void>((resolve) => {
-      createIdleTrigger(() => {
-        called = true;
-        resolve();
-      }, { timeout: 5 });
+      createIdleTrigger(
+        () => {
+          called = true;
+          resolve();
+        },
+        { timeout: 5 },
+      );
     });
 
     assert.equal(called, true);
   } finally {
-    if (originalRic !== undefined) (globalThis as any).requestIdleCallback = originalRic;
-    if (originalCancel !== undefined) (globalThis as any).cancelIdleCallback = originalCancel;
+    if (originalRic !== undefined)
+      (globalThis as any).requestIdleCallback = originalRic;
+    if (originalCancel !== undefined)
+      (globalThis as any).cancelIdleCallback = originalCancel;
   }
 });

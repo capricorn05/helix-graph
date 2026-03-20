@@ -231,7 +231,9 @@ export async function reorderPostsPageRows(
 
   const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
   const safePageSize =
-    Number.isFinite(pageSize) && pageSize > 0 ? Math.floor(pageSize) : POSTS_PAGE_SIZE;
+    Number.isFinite(pageSize) && pageSize > 0
+      ? Math.floor(pageSize)
+      : POSTS_PAGE_SIZE;
 
   const totalPages = Math.max(1, Math.ceil(rows.length / safePageSize));
   const clampedPage = Math.min(safePage, totalPages);
@@ -251,7 +253,9 @@ export async function reorderPostsPageRows(
   }
 
   const rowById = new Map(currentSlice.map((row) => [row.id, row]));
-  const reorderedSlice = rowIds.map((id) => rowById.get(id)).filter(Boolean) as PostRow[];
+  const reorderedSlice = rowIds
+    .map((id) => rowById.get(id))
+    .filter(Boolean) as PostRow[];
   if (reorderedSlice.length !== currentSlice.length) {
     return false;
   }
