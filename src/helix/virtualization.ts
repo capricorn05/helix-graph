@@ -1,7 +1,13 @@
+import type { Cell } from "./reactive.js";
+import { cell as makeCell } from "./reactive.js";
+import type { ReactiveOwner } from "./types.js";
+
 export interface VirtualListConfig {
   itemHeight: number;
   bufferSize?: number;
   containerSelector: string;
+  /** Called whenever the visible window changes (scroll or totalCount update). */
+  onChange?: (state: WindowState) => void;
 }
 
 export interface VirtualGridConfig {
@@ -10,6 +16,8 @@ export interface VirtualGridConfig {
   columnCount: number;
   bufferSize?: number;
   containerSelector: string;
+  /** Called whenever the visible window changes (scroll or totalCount update). */
+  onChange?: (state: WindowState) => void;
 }
 
 export interface WindowState {
@@ -29,7 +37,8 @@ export class VirtualList {
   constructor(config: VirtualListConfig) {
     this.config = {
       ...config,
-      bufferSize: config.bufferSize ?? 5
+      bufferSize: config.bufferSize ?? 5,
+      onChange: config.onChange ?? (() => undefined),
     };
     this.state = {
       startIndex: 0,
@@ -73,6 +82,7 @@ export class VirtualList {
       offsetTop: startIndex * this.config.itemHeight,
       totalCount: this.state.totalCount
     };
+    this.config.onChange?.(this.getWindow());
   }
 
   getWindow(): WindowState {
@@ -98,7 +108,8 @@ export class VirtualGrid {
   constructor(config: VirtualGridConfig) {
     this.config = {
       ...config,
-      bufferSize: config.bufferSize ?? 5
+      bufferSize: config.bufferSize ?? 5,
+      onChange: config.onChange ?? (() => undefined),
     };
     this.state = {
       startIndex: 0,
@@ -144,6 +155,7 @@ export class VirtualGrid {
       offsetTop: Math.floor(startIndex / this.config.columnCount) * rowHeight,
       totalCount: this.state.totalCount
     };
+    this.config.onChange?.(this.getWindow());
   }
 
   getWindow(): WindowState {
@@ -158,4 +170,80 @@ export class VirtualGrid {
   getVisibleKeys<T>(allKeys: readonly T[]): T[] {
     return allKeys.slice(this.state.startIndex, this.state.endIndex);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Reactive factory helpers
+// ---------------------------------------------------------------------------
+
+const defaultWindowState: WindowState = {
+  startIndex: 0,
+  endIndex: 0,
+  visibleCount: 0,
+  offsetTop: 0,
+  totalCount: 0,
+};
+
+export interface ReactiveVirtualList {
+  list: VirtualList;
+  /** Reactive cell that emits the current WindowState on every scroll update. */
+  window: Cell<WindowState>;
+}
+
+/**
+ * Creates a VirtualList wired to a reactive Cell<WindowState>.
+ * The cell updates whenever scroll position or totalCount changes.
+ *
+ * @example
+ * ```ts
+ * const { list, window: win } = createReactiveVirtualList(
+ *   { itemHeight: 48, containerSelector: "#list-scroll" },
+ *   { owner: viewScope },
+ * );
+ * list.setTotalCount(items.length);
+ * list.attach();
+ *
+ * effect(() => {
+ *   reconcileWindowedKeyed(container, keys, win.get(), createRow);
+ * }, { owner: viewScope });
+ * ```
+ */
+export function createReactiveVirtualList(
+  config: VirtualListConfig,
+  options?: { owner?: ReactiveOwner },
+): ReactiveVirtualList {
+  const windowCell = makeCell<WindowState>({ ...defaultWindowState }, { owner: options?.owner });
+  const list = new VirtualList({
+    ...config,
+    onChange: (state) => windowCell.set({ ...state }),
+  });
+  if (options?.owner) {
+    options.owner.onDispose(() => list.detach());
+  }
+  return { list, window: windowCell };
+}
+
+export interface ReactiveVirtualGrid {
+  grid: VirtualGrid;
+  /** Reactive cell that emits the current WindowState on every scroll update. */
+  window: Cell<WindowState>;
+}
+
+/**
+ * Creates a VirtualGrid wired to a reactive Cell<WindowState>.
+ * The cell updates whenever scroll position or totalCount changes.
+ */
+export function createReactiveVirtualGrid(
+  config: VirtualGridConfig,
+  options?: { owner?: ReactiveOwner },
+): ReactiveVirtualGrid {
+  const windowCell = makeCell<WindowState>({ ...defaultWindowState }, { owner: options?.owner });
+  const grid = new VirtualGrid({
+    ...config,
+    onChange: (state) => windowCell.set({ ...state }),
+  });
+  if (options?.owner) {
+    options.owner.onDispose(() => grid.detach());
+  }
+  return { grid, window: windowCell };
 }

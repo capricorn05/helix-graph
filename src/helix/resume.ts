@@ -3,6 +3,12 @@ import { initializeDevtools, type DevtoolsConfig } from "./devtools.js";
 import { installPopStateListener } from "./client-router.js";
 import { PatchRuntime } from "./patch.js";
 import { HelixScheduler } from "./scheduler.js";
+import {
+  createIdleTrigger,
+  createVisibilityTrigger,
+  type IdleTriggerController,
+  type VisibilityTriggerController,
+} from "./lazy-activation.js";
 import type { BindingMap, GraphSnapshot, HelixEventBinding } from "./types.js";
 
 export interface ResumableRuntimeBase {
@@ -51,6 +57,16 @@ export interface DelegatorOptions {
   preventDefaultEvents?: string[];
 }
 
+export type ClientOnlyActivationMode = "idle" | "visible" | "visible-or-idle";
+
+export interface ClientOnlyActivationOptions {
+  mode?: ClientOnlyActivationMode;
+  visibilityRoot?: Element | Document | null;
+  visibilityRootMargin?: string;
+  visibilityThreshold?: number | number[];
+  idleTimeoutMs?: number;
+}
+
 export interface ResumeClientOptions<TRuntime extends ResumableRuntimeBase> {
   createRuntime: (context: RuntimeFactoryContext) => TRuntime;
   globalRuntimeKey?: string;
@@ -64,6 +80,7 @@ export interface ResumeClientOptions<TRuntime extends ResumableRuntimeBase> {
   devtoolsConfig?: DevtoolsConfig;
   devtoolsToggleKey?: string;
   delegatorOptions?: DelegatorOptions;
+  clientOnlyActivation?: ClientOnlyActivationOptions;
 }
 
 const mountedClientOnlyElements = new WeakSet<HTMLElement>();
@@ -80,21 +97,6 @@ export function readJsonScript<T>(id: string, root: ParentNode = document): T {
   }
 
   return JSON.parse(text) as T;
-}
-
-function scheduleIdleMount(callback: () => void): void {
-  const idleScheduler = (
-    globalThis as typeof globalThis & {
-      requestIdleCallback?: (fn: () => void) => number;
-    }
-  ).requestIdleCallback;
-
-  if (typeof idleScheduler === "function") {
-    idleScheduler(callback);
-    return;
-  }
-
-  setTimeout(callback, 0);
 }
 
 function readClientOnlyProps(element: HTMLElement): unknown {
@@ -145,24 +147,94 @@ async function mountClientOnlyElement<TRuntime>(
 function installClientOnlyMounts<TRuntime>(
   runtime: TRuntime,
   options: DelegatorOptions = {},
+  activationOptions: ClientOnlyActivationOptions = {},
 ): void {
   const root = options.root ?? document;
   const importModule =
     options.importModule ??
     ((chunk: string) => import(chunk) as Promise<Record<string, unknown>>);
 
+  const activationMode = activationOptions.mode ?? "visible-or-idle";
+  const idleTimeoutMs = activationOptions.idleTimeoutMs ?? 2_000;
+
+  const pendingIdleTriggers = new WeakMap<HTMLElement, IdleTriggerController>();
+
+  const visibilityTrigger: VisibilityTriggerController | null =
+    activationMode === "idle"
+      ? null
+      : (() => {
+          if (typeof IntersectionObserver === "undefined") {
+            return null;
+          }
+
+          return createVisibilityTrigger(
+            (target) => {
+              if (!(target instanceof HTMLElement)) {
+                return;
+              }
+              mountElement(target);
+            },
+            {
+              root: activationOptions.visibilityRoot ?? null,
+              rootMargin: activationOptions.visibilityRootMargin ?? "180px 0px",
+              threshold: activationOptions.visibilityThreshold ?? 0.01,
+            },
+          );
+        })();
+
+  function clearPendingTriggers(element: HTMLElement): void {
+    const idleTrigger = pendingIdleTriggers.get(element);
+    if (idleTrigger) {
+      idleTrigger.cancel();
+      pendingIdleTriggers.delete(element);
+    }
+
+    if (visibilityTrigger) {
+      visibilityTrigger.unobserve(element);
+    }
+  }
+
+  function mountElement(element: HTMLElement): void {
+    if (mountedClientOnlyElements.has(element)) {
+      clearPendingTriggers(element);
+      return;
+    }
+
+    clearPendingTriggers(element);
+    void mountClientOnlyElement(element, runtime, importModule).catch(
+      (error: unknown) => {
+        console.error("[Helix] clientOnly mount error", error);
+      },
+    );
+  }
+
   const scheduleMount = (element: HTMLElement): void => {
     if (mountedClientOnlyElements.has(element)) {
       return;
     }
 
-    scheduleIdleMount(() => {
-      void mountClientOnlyElement(element, runtime, importModule).catch(
-        (error: unknown) => {
-          console.error("[Helix] clientOnly mount error", error);
-        },
-      );
-    });
+    const prefersIdle =
+      activationMode === "idle" || activationMode === "visible-or-idle";
+    const prefersVisibility =
+      activationMode === "visible" || activationMode === "visible-or-idle";
+
+    if (prefersVisibility && visibilityTrigger) {
+      visibilityTrigger.observe(element);
+    }
+
+    if (prefersIdle || !visibilityTrigger) {
+      const idleTrigger = createIdleTrigger(() => {
+        mountElement(element);
+      }, {
+        timeout: idleTimeoutMs,
+      });
+      pendingIdleTriggers.set(element, idleTrigger);
+      return;
+    }
+
+    if (prefersVisibility && !visibilityTrigger) {
+      mountElement(element);
+    }
   };
 
   for (const element of root.querySelectorAll<HTMLElement>(
@@ -204,6 +276,16 @@ function installClientOnlyMounts<TRuntime>(
     childList: true,
     subtree: true,
   });
+
+  const handlePageHide = () => {
+    if (visibilityTrigger) {
+      visibilityTrigger.disconnect();
+    }
+  };
+
+  if (typeof window !== "undefined") {
+    window.addEventListener("pagehide", handlePageHide, { once: true });
+  }
 }
 
 export function hydrateRuntimeGraph(snapshot: GraphSnapshot): void {
@@ -325,6 +407,10 @@ export function resumeClientApp<TRuntime extends ResumableRuntimeBase>(
   }
 
   installBindingDelegator(bindings, runtime, options.delegatorOptions);
-  installClientOnlyMounts(runtime, options.delegatorOptions);
+  installClientOnlyMounts(
+    runtime,
+    options.delegatorOptions,
+    options.clientOnlyActivation,
+  );
   return runtime;
 }

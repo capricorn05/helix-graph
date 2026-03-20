@@ -11,12 +11,13 @@ This workspace contains a runnable TypeScript prototype of the Helix framework d
 - streaming SSR with embedded `GraphSnapshot` + `BindingMap`
 - resumable/lazy activation via one event delegator and dynamic `import()` of action chunks
 
-## Phase 2 (Virtualization + Devtools + Forms)
+## Phase 2 (Virtualization + Devtools + Forms + Islands)
 
-- **Virtualization** (`VirtualList`, `VirtualGrid`) — framework primitives for windowed rendering (implemented, not yet integrated in example app)
-- **DevTools** — in-page graph inspector + causality trace viewer (press `Ctrl+M` to toggle)
-- **Form Enhancement** — client-side validation, error patching, optimistic updates with rollback
-- example users app with paging, sorting, form validation, and real-time devtools traces
+- **Virtualization** (`VirtualList`, `VirtualGrid`) — framework primitives for windowed rendering with reactive window factories and windowed reconciliation
+- **DevTools** — in-page graph inspector + causality trace viewer + scope/effect topology tab (press `Ctrl+M` to toggle)
+- **Form Enhancement** — DOM-first form helpers plus reactive `createFormState(...)` for fully client-owned form models
+- **Interactive islands** — autocomplete with debounce/cache, drag-reorder with rollback, SSE/WebSocket invalidation channels, and lazy activation helpers
+- example users app with paging, sorting, form validation, drawer overlays, and real-time devtools traces
 
 ## Run
 
@@ -24,6 +25,19 @@ This workspace contains a runnable TypeScript prototype of the Helix framework d
 npm install
 npm run dev
 ```
+
+Optional (for live MongoDB sample dataset on `/airbnb-mongo`):
+
+```bash
+cp .env.example .env
+# then edit .env and set:
+# MONGODB_URI=<your-mongodb-connection-string>
+# optional overrides (defaults shown):
+# MONGODB_AIRBNB_DATABASE=sample_airbnb
+# MONGODB_AIRBNB_COLLECTION=listingsAndReviews
+```
+
+The server entrypoints load `.env` automatically.
 
 Open: `http://localhost:4173`
 
@@ -35,6 +49,8 @@ Health check: `http://localhost:4173/health`
 - Regenerate bindings only when binding ids or client handler exports change: `npm run gen:bindings`
 - Regenerate compiled TSX views when view source files change: `npm run gen:views`
 - Optional pre-commit automation: `npm run hooks:install`
+- Run Playwright end-to-end tests (requires a prior build): `npm run test:e2e`
+- During development with a running server: `npx playwright test --headed`
 
 The installed pre-commit hook runs `npm run verify` automatically.
 
@@ -65,10 +81,16 @@ When interaction is high-frequency (paging/sort/filter), add a hybrid data path:
 - subsequent updates: JSON endpoint + targeted DOM patch on the client
 
 Reference implementation: Host Listings (`/host-listings`) now follows this pattern.
+The Mongo-backed Airbnb page (`/airbnb-mongo`) also follows the same split with
+server-side query parsing/resource reads and client-side targeted updates.
 
 ## End-to-end: add a page in Helix
 
 For the full walkthrough (including troubleshooting), see `END_TO_END_FRAMEWORK_GUIDE.md`.
+
+For a smaller interaction recipe inside an existing page (input + button → echo text + alert + POST → thank-you response), see the **Recipe: add an input + button + server round-trip on an existing page** section in `END_TO_END_FRAMEWORK_GUIDE.md`.
+
+For that same example implemented with framework-native reactivity, see **Copy/paste version (framework-native reactivity)** and **Prompt template to include (framework-first: `cell` + `derived` required)** in `END_TO_END_FRAMEWORK_GUIDE.md`.
 
 1. Add a TSX page source in `src/example/views-tsx/your-page.view.tsx`.
 2. Generate compiled artifacts with `npm run gen:views`.
@@ -90,19 +112,26 @@ For the full walkthrough (including troubleshooting), see `END_TO_END_FRAMEWORK_
 
 - Binding ids are validated at generation time and must match `^[a-z][a-z0-9-]*$`.
 - Default handler export mapping is `data-hx-bind="save-user"` → `onSaveUser`.
-- App-level overrides (action id, handler name, preventDefault) live in `src/example/shared/client-action-metadata.ts`.
+- Default binding event inference is element-aware: `form` → `submit`, `input`/`textarea` → `input`, `select` → `change`, otherwise `click`.
+- Prefer `data-hx-bind` for delegated handlers that need the Helix binding/runtime pipeline; use `clientOnly()` or page enhancement modules for pure client-side DOM behavior.
+- App-level overrides (action id, event, handler name, preventDefault) live in `src/example/shared/client-action-metadata.ts`.
 - Event overrides are static-only: `data-hx-event="keydown"` on the same element as `data-hx-bind`.
 
 ### TSX escape hatches (current)
 
 - `uncompiledView(() => expr)` emits an HTML patch slot for runtime HTML content.
 - `clientOnly(() => import("/client/chunk.js"), props)` emits a client-only placeholder and mounts after resume.
+- Page-scoped enhancement modules such as `src/example/client/primitives-demo.ts` are the lightest option for local DOM-only behavior that does not need binding-map delegation.
+- When an enhancement module needs DOM targeting or simple text input → state wiring, prefer the framework helpers in `src/helix/client-dom.ts` over repeated ad-hoc `querySelector(...)` + event-listener boilerplate.
+- `bindTargetValue(...)` extends DOM bindings beyond plain text values and covers checkbox, radio-group, file-input, and multi-select reads.
 - `data-hx-event` and binding ids are compile-time checked; dynamic values are rejected.
 
 ## Project layout
 
 - `src/helix/*` — framework primitives/runtime/SSR helpers
 - `src/helix/resume.ts` — reusable resumability bootstrap + delegated event activation
+- `src/helix/client-dom.ts` — scoped `data-hx-id` target helpers plus lightweight event / text-model binding utilities for page enhancement modules
+- `src/helix/client-reactivity.ts` — shared runtime patch scheduling + once-per-runtime reactive patch binding installers for client handlers, including distinct-until-changed filtering, optional `sync`/`microtask`/`animation-frame` flush modes, and uninstallable install scopes
 - `src/helix/node-http.ts` — Node adapter helpers (`sendJson`, `readJsonBody`, static file serving)
 - `src/helix/tsx-view-compiler.ts` — framework TSX compile core (AST to template/patch descriptors)
 - `src/helix/binding-map-compiler.ts` — framework AST scan helpers for binding/list and client-handler extraction
@@ -124,6 +153,8 @@ For the full walkthrough (including troubleshooting), see `END_TO_END_FRAMEWORK_
 - `src/example/shared/*` — browser-safe modules shared by SSR wrappers and client chunks
 - `src/example/shared/client-action-metadata.ts` — app-level declarative client-action metadata manifest consumed by binding-map generation
 - `src/example/domain.ts` — in-memory users domain model
+- `src/example/resources/mongo-airbnb.resource.ts` — MongoDB-backed Airbnb listings resource with offline fallback dataset
+- `src/example/shared/mongo-airbnb.ts` — shared Airbnb page HTML helpers used by SSR wrappers and client updates
 - `src/example/scripts/generate-compiled-views.ts` — example-level wrapper that delegates compiled-view codegen orchestration to framework APIs
 - `src/example/scripts/generate-binding-map.ts` — example-level wrapper that emits binding maps using framework binding compiler + client-action metadata resolver cores
 - `src/example/utils/query.ts` — URL/query parsing for users paging/sorting
@@ -278,6 +309,16 @@ table rendering scenario.
 - Same 10,000-row external dataset and paging flow as `/external-data`
 - Adds per-row thumbnail media, additional badges, and heavier conditional row styling
 - Uses dedicated client bindings + endpoint (`/api/external-data-rich`) for incremental updates
+
+### Airbnb Mongo page
+
+The admin nav includes **Airbnb Mongo** (`/airbnb-mongo`) for a MongoDB-backed,
+high-visual discovery surface.
+
+- Reads from `sample_airbnb.listingsAndReviews` when `MONGODB_URI` is configured
+- Supports server-side paging, sorting, and quick filters (market, room type, budget, guests)
+- Uses a hybrid flow: SSR first render + `/api/airbnb-mongo` for incremental link/filter updates
+- Includes an offline curated fallback dataset so the route remains usable without MongoDB
 
 ## Example usage of framework primitives
 

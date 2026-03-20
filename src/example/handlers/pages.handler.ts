@@ -11,11 +11,16 @@ import {
   externalProductsResource,
   resolveExternalProductDetails,
 } from "../resources/external-products.resource.js";
+import {
+  MONGO_AIRBNB_PAGE_SIZE,
+  mongoAirbnbResource,
+} from "../resources/mongo-airbnb.resource.js";
 import { getUserStats } from "../domain.js";
 import { renderDocumentHead, renderPageEnd } from "../utils/html.js";
 import {
   createExternalProductsQuery,
   parsePage,
+  resolveMongoAirbnbQuery,
   resolveExternalProductsQuery,
   resolveUsersQuery,
 } from "../utils/query.js";
@@ -43,6 +48,7 @@ import { renderPostsCreatePage } from "../views/posts-create.js";
 import { renderInteractionsPage } from "../views/interactions.js";
 import { renderExternalGridPage } from "../views/external-grid.js";
 import { renderHostListingsPage } from "../views/host-listings.js";
+import { renderMongoAirbnbPage } from "../views/mongo-airbnb.js";
 import { renderPrimitivesPage } from "../views/primitives.js";
 
 const appBindingMap = buildAppBindingMap();
@@ -247,6 +253,28 @@ async function renderAdminCoreForUrl(url: URL): Promise<AdminCoreView | null> {
     };
   }
 
+  if (url.pathname === "/airbnb-mongo") {
+    const listingsPage = await mongoAirbnbResource.read(
+      resolveMongoAirbnbQuery(url, MONGO_AIRBNB_PAGE_SIZE),
+    );
+
+    return {
+      title: "Airbnb Mongo",
+      content: renderMongoAirbnbPage(listingsPage),
+      snapshotCells: {
+        mongoAirbnb: {
+          page: listingsPage.page,
+          pageSize: listingsPage.pageSize,
+          total: listingsPage.total,
+          totalPages: listingsPage.totalPages,
+          source: listingsPage.source,
+        },
+      },
+      viewIds: [compiledViewId("mongo-airbnb")],
+      resourceIds: [mongoAirbnbResource.id],
+    };
+  }
+
   if (url.pathname === "/search") {
     return {
       title: "Search",
@@ -327,6 +355,7 @@ export const handleReports = handleAdminPageRoute;
 export const handleExternalData = handleAdminPageRoute;
 export const handleExternalDataRich = handleAdminPageRoute;
 export const handleHostListings = handleAdminPageRoute;
+export const handleAirbnbMongo = handleAdminPageRoute;
 export const handlePrimitives = handleAdminPageRoute;
 
 export async function handleAppCoreComponent(ctx: RouteContext): Promise<void> {

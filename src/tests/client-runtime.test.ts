@@ -2,13 +2,18 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { GraphSnapshot } from "../helix/types.js";
 import {
+  createClientViewScope,
   makeCreateUserFormDerivedState,
   makeCreateUserFormStateCell,
   makeExternalDerivedState,
   makeExternalDetailDerivedState,
   makeExternalDetailStateCell,
   makeExternalStateCell,
+  rotateClientViewScope,
+  type HelixClientRuntime,
   makeInitialExternalDetailState,
+  makePrimitiveMessageFormDerivedState,
+  makePrimitiveMessageFormStateCell,
   makePostsDerivedState,
   makePostsStateCell,
 } from "../example/client/runtime.js";
@@ -41,6 +46,26 @@ function createSnapshot(): GraphSnapshot {
     createdAt: Date.now(),
   };
 }
+
+test("rotateClientViewScope disposes prior scope and assigns a new one", () => {
+  const initialScope = createClientViewScope();
+  let disposeCallbacks = 0;
+  initialScope.onDispose(() => {
+    disposeCallbacks += 1;
+  });
+
+  const runtime = {
+    viewScope: initialScope,
+  } as unknown as HelixClientRuntime;
+
+  const nextScope = rotateClientViewScope(runtime);
+
+  assert.equal(initialScope.disposed, true);
+  assert.equal(disposeCallbacks, 1);
+  assert.equal(nextScope.disposed, false);
+  assert.equal(runtime.viewScope.id, nextScope.id);
+  assert.notEqual(runtime.viewScope.id, initialScope.id);
+});
 
 test("posts and external client derived state reflect pager metadata", async () => {
   const snapshot = createSnapshot();
@@ -127,4 +152,29 @@ test("external detail and create-user form derived state track UI flags", async 
   assert.equal(createUserFormDerived.submitDisabled.get(), true);
   assert.equal(createUserFormDerived.nameInvalid.get(), true);
   assert.equal(createUserFormDerived.emailInvalid.get(), false);
+
+  const primitiveMessageFormStateCell = makePrimitiveMessageFormStateCell();
+  const primitiveMessageFormDerived = makePrimitiveMessageFormDerivedState(
+    primitiveMessageFormStateCell,
+  );
+
+  assert.equal(
+    primitiveMessageFormDerived.messageLabel.get(),
+    "Typed message: -",
+  );
+  assert.equal(primitiveMessageFormDerived.submitDisabled.get(), false);
+
+  primitiveMessageFormStateCell.set({
+    message: "Hello Helix",
+    submitting: true,
+    response: "Sending message…",
+  });
+
+  await flushMicrotasks();
+
+  assert.equal(
+    primitiveMessageFormDerived.messageLabel.get(),
+    "Typed message: Hello Helix",
+  );
+  assert.equal(primitiveMessageFormDerived.submitDisabled.get(), true);
 });

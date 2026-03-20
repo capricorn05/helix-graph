@@ -40,11 +40,19 @@ export interface CellOptions {
   secure?: boolean;
   clientOnly?: boolean;
   name?: string;
+  owner?: ReactiveOwner;
 }
 
-export interface DerivedOptions {
+export interface ReactiveOwner {
+  id: string;
+  onDispose(cleanup: () => void): () => void;
+}
+
+export interface DerivedOptions<TValue = unknown> {
   scope?: Scope;
   name?: string;
+  equals?: (next: TValue, previous: TValue) => boolean;
+  owner?: ReactiveOwner;
 }
 
 export interface ResourcePolicy {

@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import "./env.js";
 import { router } from "./routes/index.js";
 
 const PORT = Number(process.env.PORT ?? 4173);

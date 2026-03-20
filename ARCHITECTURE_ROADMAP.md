@@ -65,7 +65,7 @@ For new pages, prefer:
 3. server wrapper in `views/` that composes dynamic HTML and calls `render*CompiledView(...)`
 
 For high-frequency interactions (paging/sorting/filtering), add JSON endpoints + client DOM patching on top of SSR.
-Host Listings (`/host-listings`) is the reference for this combined approach.
+Host Listings (`/host-listings`) and Airbnb Mongo (`/airbnb-mongo`, MongoDB-backed with offline fallback) are references for this combined approach.
 
 ---
 
@@ -91,10 +91,13 @@ Host Listings (`/host-listings`) is the reference for this combined approach.
 
 **Goal:** Enable instant client feedback on safe operations.
 
+- [x] **Optimistic mutation infrastructure** — `withOptimistic(...)` + `TransactionLog` implemented and tested at the framework layer
+  - Framework can already apply optimistic patch batches, confirm batches, and rollback batches across scheduler lanes
+  - Example-app CRUD integrations remain open
+
 - [ ] **Optimistic row creation** — add to table before server confirmation
   - Example: click "Create Post" → row appears immediately, greyed out; on success, confirm
   - Needs: rollback on 400/500, dedupe logic for retries
-  - Reference: `src/helix/optimistic.ts` exists but not fully wired
 
 - [ ] **Optimistic row edits** — inline edit cells before POST
   - Example: click cell → make editable → submit → patch on success
@@ -113,16 +116,23 @@ Host Listings (`/host-listings`) is the reference for this combined approach.
 
 #### 3a. Autocomplete / Type-Ahead
 
-- [ ] **Per-keystroke search** with debounce and local caching
-- [ ] **Dropdown list** managed client-side during composition
+- [x] **Headless autocomplete primitive** with debounce and local caching
+  - `createAutocomplete(...)` exposes reactive `query`, `results`, and `status` cells
+  - Stale fetches are cancelled via `onCleanup(...)`
+- [x] **Dropdown list** managed client-side during composition
+  - Search page combobox suggestions are now rendered client-side from `/api/users/suggest`
 - [ ] **Server validation** on selection (e.g., userId must exist)
+- [x] **Example app integration** (search route + client island)
 - **Why:** Instant feedback on search is essential UX; server round-trip per keystroke is too slow.
 
 #### 3b. Drag & Drop
 
-- [ ] **Client-side drag state** (source, target, visual feedback)
-- [ ] **Server-side reorder** on drop with invalidation
-- [ ] **Rollback on failure** (restore original order)
+- [x] **Client-side reorder primitive** with rollback
+  - `createDragReorder(...)` manages optimistic reorder, commit, and rollback semantics over a `Cell<T[]>`
+- [x] **Client-side drag state** (source, target, visual feedback)
+- [x] **Server-side reorder** on drop with invalidation
+- [x] **Example app DOM integration** (pointer drag handles on posts page)
+- [ ] **Keyboard drag handles + accessibility announcements**
 - **Why:** Drag motion must run at 60fps; network latency kills UX entirely.
 
 #### 3c. Rich Text Editing
@@ -148,7 +158,8 @@ Decouples UI component behavior (open/close, focus management, keyboard interact
 
 #### 3e. Transient Selection & Focus State
 
-- [ ] **Expanded row detail view** (client-owned overlay)
+- [x] **Expanded row detail view** (client-owned overlay)
+  - Users admin page now ships a drawer-backed detail overlay managed on the client
 - [ ] **Multi-select checkbox state** (client-owned until submit)
 - [ ] **Filter/sort UI state** (local model updated on change, submitted on confirm button)
 - **Why:** These should be immediate; deferring to server breaks fluent interaction.
@@ -159,7 +170,12 @@ Decouples UI component behavior (open/close, focus management, keyboard interact
 
 **Goal:** Support collaborative features and live invalidation without polling.
 
-- [ ] **WebSocket connection** for server → client push
+- [x] **WebSocket/SSE invalidation transport primitive**
+  - `createInvalidationChannel(...)` supports `type: "sse"` and `type: "websocket"`
+  - Server-pushed `{ tags: string[] }` messages invalidate matching resources via `invalidateResourcesByTags(...)`
+- [x] **WebSocket/SSE endpoint wiring** in the example app / server bootstrap
+  - SSE endpoint is wired at `GET /api/invalidation-stream` and connected in client bootstrap via `createInvalidationChannel(...)`
+- [ ] **WebSocket endpoint example wiring** (optional parity with existing SSE transport path)
 - [ ] **Interest-based subscriptions** (e.g., subscribe to `posts:*:changes`)
 - [ ] **Live row updates** — when another user edits a row you're viewing, patch it in place
 - [ ] **Presence indicators** — show which users/cursors are active
@@ -190,6 +206,7 @@ Decouples UI component behavior (open/close, focus management, keyboard interact
 - Drag/drop reordering
 - Rich text editing
 - Multi-field forms with complex validation logic
+- Visibility/idle-triggered lazy enhancement for below-the-fold or non-critical UI
 - **Tradeoff:** more code in browser; full UX control; higher JS payload (but optional per page)
 
 ### Never Use Client-Side Rendering For

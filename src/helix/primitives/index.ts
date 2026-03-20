@@ -1,4 +1,5 @@
 export * from "./dialog.js";
+export * from "./drawer.js";
 export * from "./popover.js";
 export * from "./menu.js";
 export * from "./tabs.js";

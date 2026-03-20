@@ -1,5 +1,7 @@
 import { resumeClientApp } from "../../helix/resume.js";
+import { createInvalidationChannel } from "../../helix/invalidation-channel.js";
 import {
+  createClientViewScope,
   makeCreateUserFormDerivedState,
   makeCreateUserFormStateCell,
   makeDerivedState,
@@ -7,6 +9,8 @@ import {
   makeExternalDetailDerivedState,
   makeExternalDetailStateCell,
   makeExternalStateCell,
+  makePrimitiveMessageFormDerivedState,
+  makePrimitiveMessageFormStateCell,
   makePostsDerivedState,
   makePostsStateCell,
   makeStateCell,
@@ -15,7 +19,38 @@ import {
 import "./interactions.js";
 import "./external-grid.js";
 import "./host-listings.js";
-import "./primitives-demo.js";
+import "./mongo-airbnb.js";
+import "./posts-reorder.js";
+import {
+  initializePrimitiveEnhancements,
+  syncPrimitiveMessageStateFromDom,
+} from "./primitives-demo.js";
+import { syncCreateUserFormStateFromDom } from "./actions-users.js";
+
+let invalidationChannel: ReturnType<typeof createInvalidationChannel> | null =
+  null;
+
+function installLiveInvalidationChannel(): void {
+  if (invalidationChannel || typeof window === "undefined") {
+    return;
+  }
+
+  invalidationChannel = createInvalidationChannel({
+    type: "sse",
+    url: "/api/invalidation-stream",
+    reconnectMs: 3_000,
+  });
+  invalidationChannel.connect();
+
+  window.addEventListener(
+    "beforeunload",
+    () => {
+      invalidationChannel?.disconnect();
+      invalidationChannel = null;
+    },
+    { once: true },
+  );
+}
 
 function defineCellBackedProperty<T>(
   target: object,
@@ -32,17 +67,20 @@ function defineCellBackedProperty<T>(
   });
 }
 
-resumeClientApp<HelixClientRuntime>({
+const runtime = resumeClientApp<HelixClientRuntime>({
   createRuntime: ({ snapshot, bindings, patchRuntime, scheduler }) => {
+    const viewScope = createClientViewScope();
     const stateCell = makeStateCell(snapshot);
     const postsStateCell = makePostsStateCell(snapshot);
     const externalStateCell = makeExternalStateCell(snapshot);
     const externalDetailStateCell = makeExternalDetailStateCell();
     const createUserFormStateCell = makeCreateUserFormStateCell();
+    const primitiveMessageFormStateCell = makePrimitiveMessageFormStateCell();
 
     const runtime = {
       snapshot,
       bindings,
+      viewScope,
       state: stateCell.get(),
       stateCell,
       derived: makeDerivedState(stateCell),
@@ -62,6 +100,11 @@ resumeClientApp<HelixClientRuntime>({
       createUserFormDerived: makeCreateUserFormDerivedState(
         createUserFormStateCell,
       ),
+      primitiveMessageForm: primitiveMessageFormStateCell.get(),
+      primitiveMessageFormStateCell,
+      primitiveMessageFormDerived: makePrimitiveMessageFormDerivedState(
+        primitiveMessageFormStateCell,
+      ),
       patchRuntime,
       scheduler,
     } as HelixClientRuntime;
@@ -79,8 +122,18 @@ resumeClientApp<HelixClientRuntime>({
       "createUserForm",
       createUserFormStateCell,
     );
+    defineCellBackedProperty(
+      runtime,
+      "primitiveMessageForm",
+      primitiveMessageFormStateCell,
+    );
 
     return runtime;
   },
   devtoolsConfig: { position: "bottom-right", startOpen: false },
 });
+
+syncPrimitiveMessageStateFromDom(runtime);
+syncCreateUserFormStateFromDom(runtime);
+initializePrimitiveEnhancements();
+installLiveInvalidationChannel();

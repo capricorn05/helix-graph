@@ -28,6 +28,20 @@ const usersTableColumns: UIDataTableColumnDef<User>[] = [
     accessorKey: "status",
     cellAttrs: ({ row }) => ({ "data-hx-id": `row-${row.id}-status` }),
   },
+  {
+    id: "actions",
+    header: "Actions",
+    cell: ({ row }) =>
+      uiButton({
+        label: "Details",
+        bind: "user-detail-open",
+        variant: "secondary",
+        attrs: {
+          "data-hx-id": `row-${row.id}-detail-btn`,
+          "data-row-id": row.id,
+        },
+      }),
+  },
 ];
 
 function renderUsersSection(usersPage: UsersPage): string {
@@ -98,7 +112,34 @@ function renderUsersSection(usersPage: UsersPage): string {
       hidden
     ></span>
   </div>
-</section>`;
+</section>
+
+<div data-hx-id="user-detail-drawer-overlay" class="drawer-overlay" style="display: none;">
+  <div data-hx-id="user-detail-drawer-panel" class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="user-detail-drawer-title">
+    <div class="drawer-header">
+      <h2 data-hx-id="user-detail-drawer-title">User Details</h2>
+      ${uiButton({
+        label: "Close",
+        bind: "user-detail-close",
+        variant: "ghost",
+        attrs: { "data-hx-id": "user-detail-drawer-close-btn" },
+      })}
+    </div>
+
+    <dl class="drawer-grid">
+      <dt>ID</dt><dd data-hx-id="user-detail-drawer-id">-</dd>
+      <dt>Name</dt><dd data-hx-id="user-detail-drawer-name">-</dd>
+      <dt>Email</dt><dd data-hx-id="user-detail-drawer-email">-</dd>
+      <dt>Status</dt><dd data-hx-id="user-detail-drawer-status">-</dd>
+    </dl>
+
+    <p data-hx-id="user-detail-drawer-error" class="error"></p>
+
+    <div class="toolbar">
+      <a data-hx-id="user-detail-drawer-edit-link" class="hx-btn hx-btn--secondary" href="/users">Edit User</a>
+    </div>
+  </div>
+</div>`;
 }
 
 export const usersPageView = view<{ usersPage: UsersPage }>(

@@ -243,6 +243,27 @@ export default function PrimitivesPageView(_props: PrimitivesPageProps) {
           <p data-hx-id="demo-combobox-value">Selected: -</p>
         </div>
       </section>
+      <section>
+        <h2>Input, Alert & Server Reply</h2>
+        <form data-hx-bind="submit-primitive-message" novalidate>
+          <label>
+            Enter a message
+            <input
+              type="text"
+              name="message"
+              data-hx-id="demo-message-input"
+              placeholder="Type something here"
+            />
+          </label>
+          <p data-hx-id="demo-message-label">Typed message: -</p>
+          <div className="toolbar">
+            <button type="submit" data-hx-id="demo-message-submit">
+              Send Message
+            </button>
+          </div>
+          <p data-hx-id="demo-message-response" aria-live="polite"></p>
+        </form>
+      </section>
     </div>
   );
 }

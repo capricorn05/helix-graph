@@ -105,6 +105,10 @@ test("resumeClientApp rehydrates bindings, graph snapshot, and clientOnly placeh
     }),
     enableDevtools: false,
     installPopState: false,
+    clientOnlyActivation: {
+      mode: "idle",
+      idleTimeoutMs: 0,
+    },
     delegatorOptions: {
       root: dom.window.document,
       importModule: async (chunk: string) => {

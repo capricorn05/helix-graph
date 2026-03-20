@@ -314,16 +314,16 @@ function renderExternalProductsRichTable(
   </div>
 </section>
 
-<div data-hx-id="external-media-modal-overlay" class="modal-overlay" style="display: none;">
-  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="external-media-modal-title">
-    <div class="modal-header">
+<div data-hx-id="external-media-modal-overlay" class="drawer-overlay" style="display: none;">
+  <div data-hx-id="external-media-modal-panel" class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="external-media-modal-title">
+    <div class="drawer-header">
       <h2 data-hx-id="external-media-modal-title">Product Details</h2>
       ${uiButton({ label: "Close", bind: "external-media-detail-close", variant: "ghost", attrs: { "data-hx-id": "external-media-modal-close-btn" } })}
     </div>
 
-    <img data-hx-id="external-media-modal-thumbnail" class="modal-thumb" alt="" src="" />
+    <img data-hx-id="external-media-modal-thumbnail" class="drawer-thumb" alt="" src="" />
 
-    <dl class="modal-grid">
+    <dl class="drawer-grid">
       <dt>ID</dt><dd data-hx-id="external-media-modal-id">-</dd>
       <dt>Brand</dt><dd data-hx-id="external-media-modal-brand">-</dd>
       <dt>Category</dt><dd data-hx-id="external-media-modal-category">-</dd>

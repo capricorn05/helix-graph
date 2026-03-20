@@ -1,6 +1,7 @@
 export interface SearchPageProps {
   searchInputHtml: string;
   searchSuggestionsHtml: string;
+  searchStatusHtml: string;
   searchButtonHtml: string;
   searchHelpTriggerHtml: string;
   searchHelpPopoverHtml: string;
@@ -19,6 +20,7 @@ export default function SearchPageView(props: SearchPageProps) {
           </label>
 
           <hx-slot value={props.searchSuggestionsHtml} />
+          <hx-slot value={props.searchStatusHtml} />
 
           <div class="toolbar">
             <hx-slot value={props.searchButtonHtml} />

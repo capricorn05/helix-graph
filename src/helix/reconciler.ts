@@ -11,6 +11,11 @@ export interface ReconcileResult {
   moved: string[];
 }
 
+export interface ReconcileWindow {
+  startIndex: number;
+  endIndex: number;
+}
+
 export function reconcileKeyed(
   container: Element,
   nextKeys: readonly Key[],
@@ -64,4 +69,21 @@ export function reconcileKeyed(
     removed,
     moved
   };
+}
+
+/**
+ * Reconciles only the visible key window for large lists.
+ * Intended for integration with VirtualList/VirtualGrid window state.
+ */
+export function reconcileWindowedKeyed(
+  container: Element,
+  allKeys: readonly Key[],
+  window: ReconcileWindow,
+  createNode: (key: string) => Node,
+  options?: ReconcileOptions,
+): ReconcileResult {
+  const start = Math.max(0, Math.min(allKeys.length, Math.floor(window.startIndex)));
+  const end = Math.max(start, Math.min(allKeys.length, Math.floor(window.endIndex)));
+  const visible = allKeys.slice(start, end);
+  return reconcileKeyed(container, visible, createNode, options);
 }

@@ -13,6 +13,7 @@
 import { createServer } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import "./env.js";
 import { router } from "./routes/index.js";
 import {
   LiveReloadTracker,

@@ -7,9 +7,11 @@ import type {
 } from "../../helix/types.js";
 import {
   cell,
+  createReactiveScope,
   derived,
   type Cell,
   type Derived,
+  type ReactiveScope,
 } from "../../helix/reactive.js";
 
 const DEFAULT_USERS_PAGE_SIZE = 6;
@@ -55,6 +57,12 @@ export interface CreateUserFormState {
   formError: string;
 }
 
+export interface PrimitiveMessageFormState {
+  message: string;
+  submitting: boolean;
+  response: string;
+}
+
 export interface UsersClientDerivedState {
   pageLabel: Derived<string>;
   prevDisabled: Derived<boolean>;
@@ -92,9 +100,15 @@ export interface CreateUserFormDerivedState {
   emailInvalid: Derived<boolean>;
 }
 
+export interface PrimitiveMessageFormDerivedState {
+  messageLabel: Derived<string>;
+  submitDisabled: Derived<boolean>;
+}
+
 export interface HelixClientRuntime {
   snapshot: GraphSnapshot;
   bindings: BindingMap;
+  viewScope: ReactiveScope;
   state: UsersClientState;
   stateCell: Cell<UsersClientState>;
   derived: UsersClientDerivedState;
@@ -110,6 +124,9 @@ export interface HelixClientRuntime {
   createUserForm: CreateUserFormState;
   createUserFormStateCell: Cell<CreateUserFormState>;
   createUserFormDerived: CreateUserFormDerivedState;
+  primitiveMessageForm: PrimitiveMessageFormState;
+  primitiveMessageFormStateCell: Cell<PrimitiveMessageFormState>;
+  primitiveMessageFormDerived: PrimitiveMessageFormDerivedState;
   patchRuntime: PatchRuntime;
   scheduler: HelixScheduler;
 }
@@ -160,6 +177,24 @@ declare global {
   interface Window {
     __HELIX_RUNTIME__?: HelixClientRuntime;
   }
+}
+
+let clientViewScopeCounter = 0;
+
+export function createClientViewScope(): ReactiveScope {
+  clientViewScopeCounter += 1;
+  return createReactiveScope({
+    name: `client-view-scope-${clientViewScopeCounter}`,
+    scope: "view",
+  });
+}
+
+export function rotateClientViewScope(runtime: HelixClientRuntime): ReactiveScope {
+  runtime.viewScope.dispose();
+
+  const nextScope = createClientViewScope();
+  runtime.viewScope = nextScope;
+  return nextScope;
 }
 
 export function makeInitialState(snapshot: GraphSnapshot): UsersClientState {
@@ -231,6 +266,14 @@ export function makeInitialCreateUserFormState(): CreateUserFormState {
   };
 }
 
+export function makeInitialPrimitiveMessageFormState(): PrimitiveMessageFormState {
+  return {
+    message: "",
+    submitting: false,
+    response: "",
+  };
+}
+
 export function makeStateCell(snapshot: GraphSnapshot): Cell<UsersClientState> {
   return cell(makeInitialState(snapshot), {
     scope: "view",
@@ -275,6 +318,15 @@ export function makeCreateUserFormStateCell(): Cell<CreateUserFormState> {
   return cell(makeInitialCreateUserFormState(), {
     scope: "view",
     name: "create-user-form-state",
+    clientOnly: true,
+    serializable: false,
+  });
+}
+
+export function makePrimitiveMessageFormStateCell(): Cell<PrimitiveMessageFormState> {
+  return cell(makeInitialPrimitiveMessageFormState(), {
+    scope: "view",
+    name: "primitive-message-form-state",
     clientOnly: true,
     serializable: false,
   });
@@ -461,6 +513,29 @@ export function makeCreateUserFormDerivedState(
     emailInvalid: derived(() => stateCell.get().emailError.length > 0, {
       scope: "view",
       name: "create-user-email-invalid",
+    }),
+  };
+}
+
+export function makePrimitiveMessageFormDerivedState(
+  stateCell: Cell<PrimitiveMessageFormState>,
+): PrimitiveMessageFormDerivedState {
+  return {
+    messageLabel: derived(
+      () => {
+        const message = stateCell.get().message;
+        return message.length > 0
+          ? `Typed message: ${message}`
+          : "Typed message: -";
+      },
+      {
+        scope: "view",
+        name: "primitive-message-label",
+      },
+    ),
+    submitDisabled: derived(() => stateCell.get().submitting, {
+      scope: "view",
+      name: "primitive-message-submit-disabled",
     }),
   };
 }

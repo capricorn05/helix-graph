@@ -1,11 +1,11 @@
 import { reconcileKeyed } from "../../helix/reconciler.js";
+import {
+  installRuntimeReactivePatchBindings,
+  scheduleRuntimePatchBatch,
+} from "../../helix/client-reactivity.js";
 import type { Lane, PatchOp } from "../../helix/types.js";
 import { HelixClientHandlerContext, HelixClientRuntime } from "./runtime.js";
-import {
-  parseNumeric,
-  schedulePatchBatch,
-  scheduleReactivePatches,
-} from "./actions-shared.js";
+import { parseNumeric } from "./actions-shared.js";
 
 interface PostRow {
   id: number;
@@ -22,77 +22,86 @@ interface PostsApiResponse {
   totalPages: number;
 }
 
-const postsRuntimeReactivityInstalled = new WeakSet<HelixClientRuntime>();
-
 function installPostsRuntimeStateReactivity(runtime: HelixClientRuntime): void {
-  if (postsRuntimeReactivityInstalled.has(runtime)) {
-    return;
-  }
-
-  postsRuntimeReactivityInstalled.add(runtime);
-
-  runtime.postsDerived.pageLabel.subscribe((value) => {
-    scheduleReactivePatches(runtime, "posts-state:page-label", [
-      { op: "setText", targetId: "posts-page-label", value },
-    ]);
-  });
-
-  runtime.postsDerived.totalLabel.subscribe((value) => {
-    scheduleReactivePatches(runtime, "posts-state:total-label", [
-      { op: "setText", targetId: "posts-total-label", value },
-    ]);
-  });
-
-  runtime.postsDerived.prevDisabled.subscribe((disabled) => {
-    scheduleReactivePatches(runtime, "posts-state:prev-disabled", [
+  installRuntimeReactivePatchBindings(
+    runtime,
+    "posts-runtime-state-reactivity",
+    [
       {
-        op: "setAttr",
-        targetId: "posts-prev-btn",
-        name: "disabled",
-        value: disabled ? "disabled" : null,
-      },
-    ]);
-  });
-
-  runtime.postsDerived.nextDisabled.subscribe((disabled) => {
-    scheduleReactivePatches(runtime, "posts-state:next-disabled", [
-      {
-        op: "setAttr",
-        targetId: "posts-next-btn",
-        name: "disabled",
-        value: disabled ? "disabled" : null,
-      },
-    ]);
-  });
-
-  runtime.postsStateCell.subscribe((state) => {
-    scheduleReactivePatches(runtime, "posts-state:attrs", [
-      {
-        op: "setAttr",
-        targetId: "posts-page-state",
-        name: "data-page",
-        value: String(state.page),
+        trigger: "posts-state:page-label",
+        source: runtime.postsDerived.pageLabel,
+        patches: (value) => [
+          { op: "setText", targetId: "posts-page-label", value },
+        ],
       },
       {
-        op: "setAttr",
-        targetId: "posts-page-state",
-        name: "data-page-size",
-        value: String(state.pageSize),
+        trigger: "posts-state:total-label",
+        source: runtime.postsDerived.totalLabel,
+        patches: (value) => [
+          { op: "setText", targetId: "posts-total-label", value },
+        ],
       },
       {
-        op: "setAttr",
-        targetId: "posts-page-state",
-        name: "data-total",
-        value: String(state.total),
+        trigger: "posts-state:prev-disabled",
+        source: runtime.postsDerived.prevDisabled,
+        patches: (disabled) => [
+          {
+            op: "setAttr",
+            targetId: "posts-prev-btn",
+            name: "disabled",
+            value: disabled ? "disabled" : null,
+          },
+        ],
       },
       {
-        op: "setAttr",
-        targetId: "posts-page-state",
-        name: "data-total-pages",
-        value: String(state.totalPages),
+        trigger: "posts-state:next-disabled",
+        source: runtime.postsDerived.nextDisabled,
+        patches: (disabled) => [
+          {
+            op: "setAttr",
+            targetId: "posts-next-btn",
+            name: "disabled",
+            value: disabled ? "disabled" : null,
+          },
+        ],
       },
-    ]);
-  });
+      {
+        trigger: "posts-state:attrs",
+        source: runtime.postsStateCell,
+        patches: (state) => [
+          {
+            op: "setAttr",
+            targetId: "posts-page-state",
+            name: "data-page",
+            value: String(state.page),
+          },
+          {
+            op: "setAttr",
+            targetId: "posts-page-state",
+            name: "data-page-size",
+            value: String(state.pageSize),
+          },
+          {
+            op: "setAttr",
+            targetId: "posts-page-state",
+            name: "data-total",
+            value: String(state.total),
+          },
+          {
+            op: "setAttr",
+            targetId: "posts-page-state",
+            name: "data-total-pages",
+            value: String(state.totalPages),
+          },
+        ],
+      },
+    ],
+    {
+      flush: "microtask",
+      dedupePatches: true,
+      owner: runtime.viewScope,
+    },
+  );
 }
 
 export function syncPostsStateFromDom(runtime: HelixClientRuntime): void {
@@ -209,7 +218,12 @@ function applyPostsPage(
     );
   }
 
-  schedulePatchBatch(runtime, trigger, lane, patches, ["posts-body"]);
+  scheduleRuntimePatchBatch(runtime, {
+    trigger,
+    lane,
+    patches,
+    nodes: ["posts-body"],
+  });
 }
 
 async function refreshPosts(

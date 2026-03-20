@@ -1,19 +1,28 @@
-import { HelixClientHandlerContext, HelixClientRuntime } from "./runtime.js";
+import {
+  HelixClientHandlerContext,
+  HelixClientRuntime,
+  rotateClientViewScope,
+} from "./runtime.js";
 import {
   isPrimaryNavigationEvent,
   ServerActionError,
   updateActiveAdminNav,
 } from "./actions-shared.js";
 import {
+  resetUserDetailDrawerController,
   syncCreateUserFormStateFromDom,
   syncUsersStateFromDom,
 } from "./actions-users.js";
 import { syncPostsStateFromDom } from "./actions-posts.js";
 import {
+  resetExternalDialogControllers,
   syncExternalDetailStateFromDom,
   syncExternalStateFromDom,
 } from "./actions-external.js";
-import { initializePrimitiveEnhancements } from "./primitives-demo.js";
+import {
+  initializePrimitiveEnhancements,
+  syncPrimitiveMessageStateFromDom,
+} from "./primitives-demo.js";
 
 let appNavPopstateInstalled = false;
 
@@ -23,6 +32,7 @@ function syncRuntimeStateFromDom(runtime: HelixClientRuntime): void {
   syncExternalStateFromDom(runtime);
   syncExternalDetailStateFromDom(runtime);
   syncCreateUserFormStateFromDom(runtime);
+  syncPrimitiveMessageStateFromDom(runtime);
 }
 
 async function loadAdminCore(
@@ -52,6 +62,9 @@ async function loadAdminCore(
     }
 
     const html = await response.text();
+    resetUserDetailDrawerController();
+    resetExternalDialogControllers();
+    rotateClientViewScope(runtime);
     core.innerHTML = html;
 
     const title = response.headers.get("x-helix-title");
@@ -84,6 +97,14 @@ function installAppNavPopstate(runtime: HelixClientRuntime): void {
     if (
       window.location.pathname === "/host-listings" &&
       document.querySelector('[data-hx-id="host-listings-root"]') instanceof
+        HTMLElement
+    ) {
+      return;
+    }
+
+    if (
+      window.location.pathname === "/airbnb-mongo" &&
+      document.querySelector('[data-hx-id="airbnb-mongo-root"]') instanceof
         HTMLElement
     ) {
       return;

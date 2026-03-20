@@ -10,25 +10,40 @@ import {
   createToastController,
   createTooltipController,
 } from "../../helix/primitives/index.js";
+import { createAutocomplete } from "../../helix/autocomplete.js";
+import {
+  bindTargetTextValue,
+  createDomTargetScope,
+  listenToTarget,
+} from "../../helix/client-dom.js";
+import { installRuntimeReactivePatchBindings } from "../../helix/client-reactivity.js";
 import type { PrimitiveController } from "../../helix/primitives/core/types.js";
+import {
+  makeInitialPrimitiveMessageFormState,
+  type HelixClientRuntime,
+} from "./runtime.js";
 
 interface MountedPrimitiveControllers {
   root: HTMLElement | null;
+  key: string | null;
   controllers: PrimitiveController[];
 }
 
 const demoMount: MountedPrimitiveControllers = {
   root: null,
+  key: null,
   controllers: [],
 };
 
 const searchMount: MountedPrimitiveControllers = {
   root: null,
+  key: null,
   controllers: [],
 };
 
 const settingsMount: MountedPrimitiveControllers = {
   root: null,
+  key: null,
   controllers: [],
 };
 
@@ -41,15 +56,17 @@ function destroyControllers(controllers: PrimitiveController[]): void {
 function remountControllers(
   mounted: MountedPrimitiveControllers,
   root: HTMLElement | null,
+  key: string,
   factory: (rootEl: HTMLElement) => PrimitiveController[],
 ): void {
-  if (mounted.root === root) {
+  if (mounted.root === root && mounted.key === key) {
     return;
   }
 
   destroyControllers(mounted.controllers);
   mounted.controllers = [];
   mounted.root = root;
+  mounted.key = key;
 
   if (!root) {
     return;
@@ -58,29 +75,131 @@ function remountControllers(
   mounted.controllers = factory(root);
 }
 
-function createEventController(
-  target: EventTarget,
-  type: string,
-  listener: EventListener,
-): PrimitiveController {
-  target.addEventListener(type, listener);
-  return {
-    destroy() {
-      target.removeEventListener(type, listener);
+function getHelixRuntime(): HelixClientRuntime | null {
+  return typeof window !== "undefined"
+    ? (window.__HELIX_RUNTIME__ ?? null)
+    : null;
+}
+
+interface SearchAutocompleteSuggestion {
+  id: number;
+  name: string;
+  email: string;
+  status: "active" | "pending";
+}
+
+interface SearchAutocompleteResponse {
+  suggestions: SearchAutocompleteSuggestion[];
+}
+
+function escapeAutocompleteText(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function renderSearchAutocompleteOptions(
+  suggestions: readonly SearchAutocompleteSuggestion[],
+): string {
+  if (suggestions.length === 0) {
+    return '<div class="primitive-option" aria-disabled="true">No matching users</div>';
+  }
+
+  return suggestions
+    .map((suggestion) => {
+      const optionLabel = `${suggestion.name} (${suggestion.email})`;
+      const optionMeta = suggestion.status === "active" ? "Active" : "Pending";
+
+      return `<div data-hx-option data-hx-value="${escapeAutocompleteText(optionLabel)}" data-hx-label="${escapeAutocompleteText(optionLabel)}" class="primitive-option">${escapeAutocompleteText(optionLabel)}<span class="muted"> · ${optionMeta}</span></div>`;
+    })
+    .join("");
+}
+
+function updateSearchAutocompleteStatus(
+  statusEl: HTMLElement | null,
+  value: string,
+): void {
+  if (!(statusEl instanceof HTMLElement)) {
+    return;
+  }
+
+  statusEl.textContent = value;
+}
+
+function installPrimitiveMessageReactivity(runtime: HelixClientRuntime): void {
+  installRuntimeReactivePatchBindings(
+    runtime,
+    "primitive-message-reactivity",
+    [
+      {
+        trigger: "primitive-message:label",
+        source: runtime.primitiveMessageFormDerived.messageLabel,
+        patches: (value) => [
+          { op: "setText", targetId: "demo-message-label", value },
+        ],
+      },
+      {
+        trigger: "primitive-message:response",
+        source: runtime.primitiveMessageFormStateCell,
+        patches: (state) => [
+          {
+            op: "setText",
+            targetId: "demo-message-response",
+            value: state.response,
+          },
+        ],
+      },
+      {
+        trigger: "primitive-message:submit-disabled",
+        source: runtime.primitiveMessageFormDerived.submitDisabled,
+        patches: (disabled) => [
+          {
+            op: "setAttr",
+            targetId: "demo-message-submit",
+            name: "disabled",
+            value: disabled ? "disabled" : null,
+          },
+        ],
+      },
+    ],
+    {
+      flush: "microtask",
+      dedupePatches: true,
+      owner: runtime.viewScope,
     },
+  );
+}
+
+export function syncPrimitiveMessageStateFromDom(
+  runtime: HelixClientRuntime,
+): void {
+  installPrimitiveMessageReactivity(runtime);
+
+  const input = createDomTargetScope(document).query(
+    "demo-message-input",
+    HTMLInputElement,
+  );
+  if (!input) {
+    runtime.primitiveMessageForm = makeInitialPrimitiveMessageFormState();
+    return;
+  }
+
+  runtime.primitiveMessageForm = {
+    ...makeInitialPrimitiveMessageFormState(),
+    message: input.value,
   };
 }
 
 function mountPrimitivesDemoPage(root: HTMLElement): PrimitiveController[] {
   const controllers: PrimitiveController[] = [];
+  const targets = createDomTargetScope(root);
+  const runtime = getHelixRuntime();
 
-  const dialogTrigger = root.querySelector(
-    '[data-hx-id="demo-dialog-trigger"]',
-  );
-  const dialogContent = root.querySelector(
-    '[data-hx-id="demo-dialog-content"]',
-  );
-  const dialogClose = root.querySelector('[data-hx-id="demo-dialog-close"]');
+  const dialogTrigger = targets.query("demo-dialog-trigger", HTMLElement);
+  const dialogContent = targets.query("demo-dialog-content", HTMLElement);
   if (
     dialogTrigger instanceof HTMLElement &&
     dialogContent instanceof HTMLElement
@@ -91,21 +210,22 @@ function mountPrimitivesDemoPage(root: HTMLElement): PrimitiveController[] {
     });
     controllers.push(dialog);
 
-    if (dialogClose instanceof HTMLElement) {
-      controllers.push(
-        createEventController(dialogClose, "click", () => {
-          dialog.close();
-        }),
-      );
+    const dialogCloseController = listenToTarget({
+      root,
+      targetId: "demo-dialog-close",
+      type: HTMLElement,
+      event: "click",
+      listener: () => {
+        dialog.close();
+      },
+    });
+    if (dialogCloseController) {
+      controllers.push(dialogCloseController);
     }
   }
 
-  const popoverTrigger = root.querySelector(
-    '[data-hx-id="demo-popover-trigger"]',
-  );
-  const popoverContent = root.querySelector(
-    '[data-hx-id="demo-popover-content"]',
-  );
+  const popoverTrigger = targets.query("demo-popover-trigger", HTMLElement);
+  const popoverContent = targets.query("demo-popover-content", HTMLElement);
   if (
     popoverTrigger instanceof HTMLElement &&
     popoverContent instanceof HTMLElement
@@ -118,12 +238,8 @@ function mountPrimitivesDemoPage(root: HTMLElement): PrimitiveController[] {
     );
   }
 
-  const tooltipTrigger = root.querySelector(
-    '[data-hx-id="demo-tooltip-trigger"]',
-  );
-  const tooltipContent = root.querySelector(
-    '[data-hx-id="demo-tooltip-content"]',
-  );
+  const tooltipTrigger = targets.query("demo-tooltip-trigger", HTMLElement);
+  const tooltipContent = targets.query("demo-tooltip-content", HTMLElement);
   if (
     tooltipTrigger instanceof HTMLElement &&
     tooltipContent instanceof HTMLElement
@@ -137,8 +253,8 @@ function mountPrimitivesDemoPage(root: HTMLElement): PrimitiveController[] {
     );
   }
 
-  const menuTrigger = root.querySelector('[data-hx-id="demo-menu-trigger"]');
-  const menuContent = root.querySelector('[data-hx-id="demo-menu-content"]');
+  const menuTrigger = targets.query("demo-menu-trigger", HTMLElement);
+  const menuContent = targets.query("demo-menu-content", HTMLElement);
   if (
     menuTrigger instanceof HTMLElement &&
     menuContent instanceof HTMLElement
@@ -151,12 +267,8 @@ function mountPrimitivesDemoPage(root: HTMLElement): PrimitiveController[] {
     );
   }
 
-  const dropdownTrigger = root.querySelector(
-    '[data-hx-id="demo-dropdown-trigger"]',
-  );
-  const dropdownContent = root.querySelector(
-    '[data-hx-id="demo-dropdown-content"]',
-  );
+  const dropdownTrigger = targets.query("demo-dropdown-trigger", HTMLElement);
+  const dropdownContent = targets.query("demo-dropdown-content", HTMLElement);
   if (
     dropdownTrigger instanceof HTMLElement &&
     dropdownContent instanceof HTMLElement
@@ -169,7 +281,7 @@ function mountPrimitivesDemoPage(root: HTMLElement): PrimitiveController[] {
     );
   }
 
-  const tabsRoot = root.querySelector('[data-hx-id="demo-tabs-root"]');
+  const tabsRoot = targets.query("demo-tabs-root", HTMLElement);
   if (tabsRoot instanceof HTMLElement) {
     controllers.push(
       createTabsController(tabsRoot, {
@@ -178,9 +290,7 @@ function mountPrimitivesDemoPage(root: HTMLElement): PrimitiveController[] {
     );
   }
 
-  const accordionRoot = root.querySelector(
-    '[data-hx-id="demo-accordion-root"]',
-  );
+  const accordionRoot = targets.query("demo-accordion-root", HTMLElement);
   if (accordionRoot instanceof HTMLElement) {
     controllers.push(
       createAccordionController(accordionRoot, {
@@ -190,13 +300,10 @@ function mountPrimitivesDemoPage(root: HTMLElement): PrimitiveController[] {
     );
   }
 
-  const toastViewport = root.querySelector(
-    '[data-hx-id="demo-toast-viewport"]',
-  );
-  const toastTrigger = root.querySelector('[data-hx-id="demo-toast-trigger"]');
+  const toastViewport = targets.query("demo-toast-viewport", HTMLElement);
   if (
     toastViewport instanceof HTMLElement &&
-    toastTrigger instanceof HTMLElement
+    targets.has("demo-toast-trigger")
   ) {
     const toast = createToastController(toastViewport, {
       placement: "bottom-end",
@@ -204,20 +311,25 @@ function mountPrimitivesDemoPage(root: HTMLElement): PrimitiveController[] {
     });
 
     controllers.push(toast);
-    controllers.push(
-      createEventController(toastTrigger, "click", () => {
+    const toastTriggerController = listenToTarget({
+      root,
+      targetId: "demo-toast-trigger",
+      type: HTMLElement,
+      event: "click",
+      listener: () => {
         toast.show(`Saved demo state at ${new Date().toLocaleTimeString()}`, {
           tone: "success",
         });
-      }),
-    );
+      },
+    });
+    if (toastTriggerController) {
+      controllers.push(toastTriggerController);
+    }
   }
 
-  const selectTrigger = root.querySelector(
-    '[data-hx-id="demo-select-trigger"]',
-  );
-  const selectList = root.querySelector('[data-hx-id="demo-select-list"]');
-  const selectValue = root.querySelector('[data-hx-id="demo-select-value"]');
+  const selectTrigger = targets.query("demo-select-trigger", HTMLElement);
+  const selectList = targets.query("demo-select-list", HTMLElement);
+  const selectValue = targets.query("demo-select-value", HTMLElement);
   if (
     selectTrigger instanceof HTMLElement &&
     selectList instanceof HTMLElement &&
@@ -235,13 +347,9 @@ function mountPrimitivesDemoPage(root: HTMLElement): PrimitiveController[] {
     controllers.push(select);
   }
 
-  const comboboxInput = root.querySelector(
-    '[data-hx-id="demo-combobox-input"]',
-  );
-  const comboboxList = root.querySelector('[data-hx-id="demo-combobox-list"]');
-  const comboboxValue = root.querySelector(
-    '[data-hx-id="demo-combobox-value"]',
-  );
+  const comboboxInput = targets.query("demo-combobox-input", HTMLInputElement);
+  const comboboxList = targets.query("demo-combobox-list", HTMLElement);
+  const comboboxValue = targets.query("demo-combobox-value", HTMLElement);
   if (
     comboboxInput instanceof HTMLInputElement &&
     comboboxList instanceof HTMLElement &&
@@ -257,24 +365,149 @@ function mountPrimitivesDemoPage(root: HTMLElement): PrimitiveController[] {
     );
   }
 
+  if (runtime) {
+    const primitiveMessageInputBinding = bindTargetTextValue({
+      root,
+      targetId: "demo-message-input",
+      type: HTMLInputElement,
+      onValue: (value) => {
+        runtime.primitiveMessageForm = {
+          ...runtime.primitiveMessageForm,
+          message: value,
+        };
+      },
+    });
+
+    if (primitiveMessageInputBinding) {
+      controllers.push(primitiveMessageInputBinding);
+    }
+  }
+
   return controllers;
 }
 
 function mountSearchPageEnhancements(root: HTMLElement): PrimitiveController[] {
   const controllers: PrimitiveController[] = [];
+  const targets = createDomTargetScope(root);
+  const runtime = getHelixRuntime();
 
-  const input = root.querySelector('[data-hx-id="search-combobox-input"]');
-  const list = root.querySelector('[data-hx-id="search-combobox-list"]');
+  const input = targets.query("search-combobox-input", HTMLInputElement);
+  const list = targets.query("search-combobox-list", HTMLElement);
+  const statusEl = targets.query("search-autocomplete-status", HTMLElement);
   if (input instanceof HTMLInputElement && list instanceof HTMLElement) {
-    controllers.push(
-      createComboboxController(input, list, {
-        portal: false,
-      }),
-    );
+    let pushAutocompleteQuery: ((value: string) => void) | null = null;
+
+    const combobox = createComboboxController(input, list, {
+      portal: false,
+      onChange: (value) => {
+        if (typeof value === "string") {
+          input.value = value;
+          pushAutocompleteQuery?.(value);
+        }
+      },
+    });
+    controllers.push(combobox);
+
+    if (runtime) {
+      const autocomplete = createAutocomplete<SearchAutocompleteSuggestion>({
+        owner: runtime.viewScope,
+        debounceMs: 180,
+        minLength: 1,
+        fetch: async (query) => {
+          const params = new URLSearchParams({ q: query });
+          const response = await fetch(`/api/users/suggest?${params.toString()}`);
+          if (!response.ok) {
+            throw new Error(
+              `Search suggestion request failed with status ${response.status}`,
+            );
+          }
+
+          const payload = (await response.json()) as SearchAutocompleteResponse;
+          return Array.isArray(payload.suggestions) ? payload.suggestions : [];
+        },
+      });
+
+      pushAutocompleteQuery = (value) => {
+        autocomplete.setQuery(value);
+      };
+
+      const renderSearchAutocomplete = (): void => {
+        const query = autocomplete.query.get().trim();
+        const status = autocomplete.status.get();
+        const results = autocomplete.results.get();
+
+        if (!query) {
+          list.innerHTML = "";
+          list.style.display = "none";
+          combobox.close();
+          updateSearchAutocompleteStatus(
+            statusEl,
+            "Type to search users in real time.",
+          );
+          return;
+        }
+
+        if (status === "loading") {
+          updateSearchAutocompleteStatus(statusEl, "Searching users...");
+        } else if (status === "error") {
+          list.innerHTML = "";
+          list.style.display = "none";
+          combobox.close();
+          updateSearchAutocompleteStatus(
+            statusEl,
+            "Could not load suggestions right now.",
+          );
+          return;
+        } else {
+          const resultLabel =
+            results.length === 1
+              ? "1 suggestion"
+              : `${results.length} suggestions`;
+          updateSearchAutocompleteStatus(statusEl, `Showing ${resultLabel}.`);
+        }
+
+        list.innerHTML = renderSearchAutocompleteOptions(results);
+        combobox.setQuery(input.value);
+      };
+
+      const queryUnsubscribe = autocomplete.query.subscribe(() => {
+        renderSearchAutocomplete();
+      });
+      const statusUnsubscribe = autocomplete.status.subscribe(() => {
+        renderSearchAutocomplete();
+      });
+      const resultUnsubscribe = autocomplete.results.subscribe(() => {
+        renderSearchAutocomplete();
+      });
+
+      const inputBinding = bindTargetTextValue({
+        root,
+        targetId: "search-combobox-input",
+        type: HTMLInputElement,
+        onValue: (value) => {
+          autocomplete.setQuery(value);
+        },
+      });
+      if (inputBinding) {
+        controllers.push(inputBinding);
+      }
+
+      controllers.push({
+        destroy() {
+          queryUnsubscribe();
+          statusUnsubscribe();
+          resultUnsubscribe();
+          autocomplete.destroy();
+        },
+      });
+
+      autocomplete.setQuery(input.value);
+      renderSearchAutocomplete();
+    }
   }
 
-  const helpTrigger = root.querySelector('[data-hx-id="search-help-trigger"]');
-  const helpPopover = root.querySelector('[data-hx-id="search-help-popover"]');
+  const helpTrigger = targets.query("search-help-trigger", HTMLElement);
+  const helpPopover = targets.query("search-help-popover", HTMLElement);
   if (
     helpTrigger instanceof HTMLElement &&
     helpPopover instanceof HTMLElement
@@ -294,17 +527,18 @@ function mountSettingsPageEnhancements(
   root: HTMLElement,
 ): PrimitiveController[] {
   const controllers: PrimitiveController[] = [];
+  const targets = createDomTargetScope(root);
 
-  const selectTrigger = root.querySelector(
-    '[data-hx-id="settings-page-size-trigger"]',
+  const selectTrigger = targets.query(
+    "settings-page-size-trigger",
+    HTMLElement,
   );
-  const selectList = root.querySelector(
-    '[data-hx-id="settings-page-size-list"]',
+  const selectList = targets.query("settings-page-size-list", HTMLElement);
+  const hiddenInput = targets.query(
+    "settings-page-size-hidden",
+    HTMLInputElement,
   );
-  const hiddenInput = root.querySelector(
-    '[data-hx-id="settings-page-size-hidden"]',
-  );
-  const status = root.querySelector('[data-hx-id="settings-page-size-status"]');
+  const status = targets.query("settings-page-size-status", HTMLElement);
 
   if (
     selectTrigger instanceof HTMLElement &&
@@ -324,11 +558,13 @@ function mountSettingsPageEnhancements(
     );
   }
 
-  const helpTrigger = root.querySelector(
-    '[data-hx-id="settings-page-size-help-trigger"]',
+  const helpTrigger = targets.query(
+    "settings-page-size-help-trigger",
+    HTMLElement,
   );
-  const helpTooltip = root.querySelector(
-    '[data-hx-id="settings-page-size-help-tooltip"]',
+  const helpTooltip = targets.query(
+    "settings-page-size-help-tooltip",
+    HTMLElement,
   );
 
   if (
@@ -350,9 +586,11 @@ function mountAllPrimitiveEnhancements(): void {
   const demoRoot = document.querySelector(
     '[data-hx-id="primitives-demo-root"]',
   );
+  const runtime = getHelixRuntime();
   remountControllers(
     demoMount,
     demoRoot instanceof HTMLElement ? demoRoot : null,
+    runtime ? "runtime-ready" : "runtime-missing",
     mountPrimitivesDemoPage,
   );
 
@@ -362,6 +600,7 @@ function mountAllPrimitiveEnhancements(): void {
   remountControllers(
     searchMount,
     searchRoot instanceof HTMLElement ? searchRoot : null,
+    "search",
     mountSearchPageEnhancements,
   );
 
@@ -371,6 +610,7 @@ function mountAllPrimitiveEnhancements(): void {
   remountControllers(
     settingsMount,
     settingsRoot instanceof HTMLElement ? settingsRoot : null,
+    "settings",
     mountSettingsPageEnhancements,
   );
 }

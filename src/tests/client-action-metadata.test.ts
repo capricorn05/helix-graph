@@ -52,6 +52,7 @@ test("resolveClientActionEventEntries applies metadata overrides", () => {
   const metadata = defineClientActionMetadata({
     "sort-name": {
       actionId: "setSort",
+      event: "keydown",
       handlerExport: "onSortByName",
       preventDefault: true,
       chunk: "/client/sort-actions.js",
@@ -66,6 +67,7 @@ test("resolveClientActionEventEntries applies metadata overrides", () => {
   });
 
   assert.equal(entry.actionId, "setSort");
+  assert.equal(entry.event, "keydown");
   assert.equal(entry.handlerExport, "onSortByName");
   assert.equal(entry.preventDefault, true);
   assert.equal(entry.chunk, "/client/sort-actions.js");

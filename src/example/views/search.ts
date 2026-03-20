@@ -18,6 +18,8 @@ export function renderSearchPage(): string {
       <div data-hx-option data-hx-value="email" class="primitive-option">Users by email</div>
       <div data-hx-option data-hx-value="active" class="primitive-option">Active users</div>
     </div>`,
+    searchStatusHtml:
+      '<p data-hx-id="search-autocomplete-status" class="muted">Type to search users in real time.</p>',
     searchButtonHtml: uiButton({
       label: "Search",
       type: "submit",

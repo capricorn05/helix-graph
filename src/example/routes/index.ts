@@ -21,6 +21,7 @@ import {
   handleExternalData,
   handleExternalDataRich,
   handleHostListings,
+  handleAirbnbMongo,
   handleUsersPanelComponent,
   handleAppCoreComponent,
 } from "../handlers/pages.handler.js";
@@ -29,17 +30,22 @@ import {
 import {
   handleUsersApi,
   handleUserDetailApi,
+  handleUsersSuggestApi,
   handleCreateUser,
   handleCreatePost,
+  handleReorderPosts,
   handleUserStats,
   handleExternalDataApi,
   handleExternalDataRichApi,
   handleHostListingsApi,
+  handleMongoAirbnbApi,
   handleExternalDataDetailApi,
   handlePostsApi,
+  handleInvalidationStream,
   handleDeleteUser,
   handleActivateUser,
   handleUpdateUser,
+  handleSubmitPrimitiveMessage,
 } from "../handlers/api.handler.js";
 
 // Utility handlers
@@ -86,6 +92,7 @@ const hostListingsRoute = defineRoute(
   "/host-listings",
   handleHostListings,
 );
+const airbnbMongoRoute = defineRoute("GET", "/airbnb-mongo", handleAirbnbMongo);
 const usersPanelComponentRoute = defineRoute(
   "GET",
   "/components/users-panel",
@@ -99,10 +106,20 @@ const appCoreComponentRoute = defineRoute(
 
 // API
 const apiUsersRoute = defineRoute("GET", "/api/users", handleUsersApi);
+const apiUsersSuggestRoute = defineRoute(
+  "GET",
+  "/api/users/suggest",
+  handleUsersSuggestApi,
+);
 const apiUserDetailRoute = defineRoute(
   "GET",
   "/api/users/:id",
   handleUserDetailApi,
+);
+const apiInvalidationStreamRoute = defineRoute(
+  "GET",
+  "/api/invalidation-stream",
+  handleInvalidationStream,
 );
 const apiStatsRoute = defineRoute("GET", "/api/stats", handleUserStats);
 const apiExternalDataRoute = defineRoute(
@@ -120,6 +137,11 @@ const apiHostListingsRoute = defineRoute(
   "/api/host-listings",
   handleHostListingsApi,
 );
+const apiAirbnbMongoRoute = defineRoute(
+  "GET",
+  "/api/airbnb-mongo",
+  handleMongoAirbnbApi,
+);
 const apiExternalDataDetailRoute = defineRoute(
   "GET",
   "/api/external-data/:id",
@@ -135,6 +157,16 @@ const createPostRoute = defineRoute(
   "POST",
   "/actions/create-post",
   handleCreatePost,
+);
+const reorderPostsRoute = defineRoute(
+  "POST",
+  "/actions/reorder-posts",
+  handleReorderPosts,
+);
+const submitPrimitiveMessageRoute = defineRoute(
+  "POST",
+  "/actions/submit-primitive-message",
+  handleSubmitPrimitiveMessage,
 );
 const updateUserRoute = defineRoute("POST", "/api/users/:id", handleUpdateUser);
 const deleteUserRoute = defineRoute(
@@ -176,21 +208,27 @@ export const router = createRouter([
   externalDataRoute,
   externalDataRichRoute,
   hostListingsRoute,
+  airbnbMongoRoute,
   postsNewRoute,
   postsRoute,
   usersPanelComponentRoute,
   appCoreComponentRoute,
   // API
   apiUsersRoute,
+  apiUsersSuggestRoute,
   apiUserDetailRoute,
+  apiInvalidationStreamRoute,
   apiStatsRoute,
   apiExternalDataRoute,
   apiExternalDataRichRoute,
   apiHostListingsRoute,
+  apiAirbnbMongoRoute,
   apiExternalDataDetailRoute,
   apiPostsRoute,
   createUserRoute,
   createPostRoute,
+  reorderPostsRoute,
+  submitPrimitiveMessageRoute,
   updateUserRoute,
   deleteUserRoute,
   activateUserRoute,

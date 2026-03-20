@@ -110,6 +110,22 @@ function addBindingRecord(
   bindings.set(id, event);
 }
 
+function inferDefaultBindingEvent(tagName: string): BindingEvent {
+  if (tagName === "form") {
+    return "submit";
+  }
+
+  if (tagName === "input" || tagName === "textarea") {
+    return "input";
+  }
+
+  if (tagName === "select") {
+    return "change";
+  }
+
+  return "click";
+}
+
 function collectBindingsFromHtmlLiteral(
   literalText: string,
   sourceLabel: string,
@@ -134,7 +150,7 @@ function collectBindingsFromHtmlLiteral(
     if (eventOverrideMatch) {
       event = eventOverrideMatch[1] as BindingEvent;
     } else {
-      event = tag === "form" ? "submit" : "click";
+      event = inferDefaultBindingEvent(tag);
     }
 
     addBindingRecord(bindings, id, event, sourceLabel);

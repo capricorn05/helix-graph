@@ -30,6 +30,10 @@ export default function PostsPageView(props: PostsPageViewProps) {
           hidden
         ></span>
       </div>
+
+      <p data-hx-id="posts-reorder-status" className="muted">
+        Drag rows to reorder posts on this page.
+      </p>
     </section>
   );
 }

@@ -131,9 +131,34 @@ export const appBindingMap: BindingMap = {
       actionId: "setSort",
       chunk: "/client/actions.js",
       handlerExport: "onSortByName",
+    },
+    "submit-primitive-message": {
+      id: "submit-primitive-message",
+      event: "submit",
+      actionId: "submitPrimitiveMessage",
+      chunk: "/client/actions.js",
+      handlerExport: "onSubmitPrimitiveMessage",
+    },
+    "user-detail-close": {
+      id: "user-detail-close",
+      event: "click",
+      actionId: "user-detail",
+      chunk: "/client/actions.js",
+      handlerExport: "onUserDetailClose",
+    },
+    "user-detail-open": {
+      id: "user-detail-open",
+      event: "click",
+      actionId: "user-detail",
+      chunk: "/client/actions.js",
+      handlerExport: "onUserDetailOpen",
     }
   },
   lists: {
+    "airbnb-mongo-grid": {
+      listId: "airbnb-mongo-grid",
+      keyAttr: "data-hx-key",
+    },
     "external-media-products-body": {
       listId: "external-media-products-body",
       keyAttr: "data-hx-key",

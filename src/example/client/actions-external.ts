@@ -3,17 +3,21 @@ import {
   createDialogController,
   type DialogController,
 } from "../../helix/primitives/dialog.js";
+import {
+  createDrawerController,
+  type DrawerController,
+} from "../../helix/primitives/drawer.js";
+import {
+  installRuntimeReactivePatchBindings,
+  scheduleRuntimePatchBatch,
+} from "../../helix/client-reactivity.js";
 import type { Lane, PatchOp } from "../../helix/types.js";
 import {
   HelixClientHandlerContext,
   HelixClientRuntime,
   makeInitialExternalDetailState,
 } from "./runtime.js";
-import {
-  parseNumeric,
-  schedulePatchBatch,
-  scheduleReactivePatches,
-} from "./actions-shared.js";
+import { parseNumeric } from "./actions-shared.js";
 
 interface ExternalProductRow {
   id: number;
@@ -60,17 +64,61 @@ type ExternalMediaPriceBand = "budget" | "mid" | "premium";
 type ExternalMediaStockBand = "empty" | "low" | "healthy";
 type ExternalMediaRatingBand = "low" | "mid" | "high";
 
-const externalRuntimeReactivityInstalled = new WeakSet<HelixClientRuntime>();
-let externalDetailDialog: DialogController | null = null;
-let externalMediaDetailDialog: DialogController | null = null;
+interface ExternalDialogMount {
+  controller: DialogController;
+  overlayEl: HTMLElement;
+  closeBtn: HTMLElement;
+}
+
+interface ExternalDrawerMount {
+  controller: DrawerController;
+  overlayEl: HTMLElement;
+  closeBtn: HTMLElement;
+}
+
+let externalDetailDialog: ExternalDialogMount | null = null;
+let externalMediaDetailDialog: ExternalDrawerMount | null = null;
+
+function destroyExternalDialogMount(mount: ExternalDialogMount | null): void {
+  if (!mount) {
+    return;
+  }
+
+  mount.controller.destroy();
+}
+
+function destroyExternalDrawerMount(mount: ExternalDrawerMount | null): void {
+  if (!mount) {
+    return;
+  }
+
+  mount.controller.destroy();
+}
+
+function isCurrentExternalDialogMount(
+  mount: { overlayEl: HTMLElement; closeBtn: HTMLElement },
+  overlayEl: HTMLElement,
+  closeBtn: HTMLElement,
+): boolean {
+  return (
+    mount.overlayEl.isConnected &&
+    mount.closeBtn.isConnected &&
+    mount.overlayEl === overlayEl &&
+    mount.closeBtn === closeBtn
+  );
+}
+
+export function resetExternalDialogControllers(): void {
+  destroyExternalDialogMount(externalDetailDialog);
+  externalDetailDialog = null;
+
+  destroyExternalDrawerMount(externalMediaDetailDialog);
+  externalMediaDetailDialog = null;
+}
 
 function ensureExternalDetailDialog(
   runtime: HelixClientRuntime,
 ): DialogController | null {
-  if (externalDetailDialog) {
-    return externalDetailDialog;
-  }
-
   const overlayEl = document.querySelector<HTMLElement>(
     '[data-hx-id="external-modal-overlay"]',
   );
@@ -78,10 +126,22 @@ function ensureExternalDetailDialog(
     '[data-hx-id="external-modal-close-btn"]',
   );
   if (!overlayEl || !closeBtn) {
+    destroyExternalDialogMount(externalDetailDialog);
+    externalDetailDialog = null;
     return null;
   }
 
-  externalDetailDialog = createDialogController(closeBtn, overlayEl, {
+  if (
+    externalDetailDialog &&
+    isCurrentExternalDialogMount(externalDetailDialog, overlayEl, closeBtn)
+  ) {
+    return externalDetailDialog.controller;
+  }
+
+  destroyExternalDialogMount(externalDetailDialog);
+  externalDetailDialog = null;
+
+  const controller = createDialogController(closeBtn, overlayEl, {
     portal: false,
     defaultValue: false,
     openDisplay: "flex",
@@ -95,31 +155,56 @@ function ensureExternalDetailDialog(
     },
   });
 
-  return externalDetailDialog;
+  externalDetailDialog = {
+    controller,
+    overlayEl,
+    closeBtn,
+  };
+
+  return controller;
 }
 
-function ensureExternalMediaDetailDialog(): DialogController | null {
-  if (externalMediaDetailDialog) {
-    return externalMediaDetailDialog;
-  }
-
+function ensureExternalMediaDetailDialog(): DrawerController | null {
   const overlayEl = document.querySelector<HTMLElement>(
     '[data-hx-id="external-media-modal-overlay"]',
+  );
+  const panelEl = document.querySelector<HTMLElement>(
+    '[data-hx-id="external-media-modal-panel"]',
   );
   const closeBtn = document.querySelector<HTMLElement>(
     '[data-hx-id="external-media-modal-close-btn"]',
   );
-  if (!overlayEl || !closeBtn) {
+  if (!overlayEl || !panelEl || !closeBtn) {
+    destroyExternalDrawerMount(externalMediaDetailDialog);
+    externalMediaDetailDialog = null;
     return null;
   }
 
-  externalMediaDetailDialog = createDialogController(closeBtn, overlayEl, {
+  if (
+    externalMediaDetailDialog &&
+    isCurrentExternalDialogMount(externalMediaDetailDialog, overlayEl, closeBtn)
+  ) {
+    return externalMediaDetailDialog.controller;
+  }
+
+  destroyExternalDrawerMount(externalMediaDetailDialog);
+  externalMediaDetailDialog = null;
+
+  const controller = createDrawerController(closeBtn, overlayEl, {
     portal: false,
     defaultValue: false,
-    openDisplay: "flex",
+    side: "right",
+    closingDuration: 220,
+    dismissTarget: panelEl,
   });
 
-  return externalMediaDetailDialog;
+  externalMediaDetailDialog = {
+    controller,
+    overlayEl,
+    closeBtn,
+  };
+
+  return controller;
 }
 
 function getExternalMediaPriceBand(price: number): ExternalMediaPriceBand {
@@ -209,133 +294,158 @@ function truncateExternalMediaTitleForCell(title: string): string {
 function installExternalRuntimeStateReactivity(
   runtime: HelixClientRuntime,
 ): void {
-  if (externalRuntimeReactivityInstalled.has(runtime)) {
-    return;
-  }
-
-  externalRuntimeReactivityInstalled.add(runtime);
-
-  runtime.externalDerived.pageLabel.subscribe((value) => {
-    scheduleReactivePatches(runtime, "external-state:page-label", [
-      { op: "setText", targetId: "external-page-label", value },
-    ]);
-  });
-
-  runtime.externalDerived.totalLabel.subscribe((value) => {
-    scheduleReactivePatches(runtime, "external-state:total-label", [
-      { op: "setText", targetId: "external-total-label", value },
-    ]);
-  });
-
-  runtime.externalDerived.prevDisabled.subscribe((disabled) => {
-    scheduleReactivePatches(runtime, "external-state:prev-disabled", [
+  installRuntimeReactivePatchBindings(
+    runtime,
+    "external-runtime-state-reactivity",
+    [
       {
-        op: "setAttr",
-        targetId: "external-prev-btn",
-        name: "disabled",
-        value: disabled ? "disabled" : null,
-      },
-    ]);
-  });
-
-  runtime.externalDerived.nextDisabled.subscribe((disabled) => {
-    scheduleReactivePatches(runtime, "external-state:next-disabled", [
-      {
-        op: "setAttr",
-        targetId: "external-next-btn",
-        name: "disabled",
-        value: disabled ? "disabled" : null,
-      },
-    ]);
-  });
-
-  runtime.externalStateCell.subscribe((state) => {
-    scheduleReactivePatches(runtime, "external-state:attrs", [
-      {
-        op: "setAttr",
-        targetId: "external-page-state",
-        name: "data-page",
-        value: String(state.page),
+        trigger: "external-state:page-label",
+        source: runtime.externalDerived.pageLabel,
+        patches: (value) => [
+          { op: "setText", targetId: "external-page-label", value },
+        ],
       },
       {
-        op: "setAttr",
-        targetId: "external-page-state",
-        name: "data-page-size",
-        value: String(state.pageSize),
+        trigger: "external-state:total-label",
+        source: runtime.externalDerived.totalLabel,
+        patches: (value) => [
+          { op: "setText", targetId: "external-total-label", value },
+        ],
       },
       {
-        op: "setAttr",
-        targetId: "external-page-state",
-        name: "data-total",
-        value: String(state.total),
+        trigger: "external-state:prev-disabled",
+        source: runtime.externalDerived.prevDisabled,
+        patches: (disabled) => [
+          {
+            op: "setAttr",
+            targetId: "external-prev-btn",
+            name: "disabled",
+            value: disabled ? "disabled" : null,
+          },
+        ],
       },
       {
-        op: "setAttr",
-        targetId: "external-page-state",
-        name: "data-total-pages",
-        value: String(state.totalPages),
-      },
-    ]);
-  });
-
-  runtime.externalDetailStateCell.subscribe((detail) => {
-    scheduleReactivePatches(runtime, "external-detail:content", [
-      { op: "setText", targetId: "external-modal-title", value: detail.title },
-      { op: "setText", targetId: "external-modal-brand", value: detail.brand },
-      {
-        op: "setText",
-        targetId: "external-modal-category",
-        value: detail.category,
+        trigger: "external-state:next-disabled",
+        source: runtime.externalDerived.nextDisabled,
+        patches: (disabled) => [
+          {
+            op: "setAttr",
+            targetId: "external-next-btn",
+            name: "disabled",
+            value: disabled ? "disabled" : null,
+          },
+        ],
       },
       {
-        op: "setText",
-        targetId: "external-modal-description",
-        value: detail.description,
+        trigger: "external-state:attrs",
+        source: runtime.externalStateCell,
+        patches: (state) => [
+          {
+            op: "setAttr",
+            targetId: "external-page-state",
+            name: "data-page",
+            value: String(state.page),
+          },
+          {
+            op: "setAttr",
+            targetId: "external-page-state",
+            name: "data-page-size",
+            value: String(state.pageSize),
+          },
+          {
+            op: "setAttr",
+            targetId: "external-page-state",
+            name: "data-total",
+            value: String(state.total),
+          },
+          {
+            op: "setAttr",
+            targetId: "external-page-state",
+            name: "data-total-pages",
+            value: String(state.totalPages),
+          },
+        ],
       },
       {
-        op: "setAttr",
-        targetId: "external-modal-thumbnail",
-        name: "src",
-        value: detail.thumbnail || null,
+        trigger: "external-detail:content",
+        source: runtime.externalDetailStateCell,
+        patches: (detail) => [
+          {
+            op: "setText",
+            targetId: "external-modal-title",
+            value: detail.title,
+          },
+          {
+            op: "setText",
+            targetId: "external-modal-brand",
+            value: detail.brand,
+          },
+          {
+            op: "setText",
+            targetId: "external-modal-category",
+            value: detail.category,
+          },
+          {
+            op: "setText",
+            targetId: "external-modal-description",
+            value: detail.description,
+          },
+          {
+            op: "setAttr",
+            targetId: "external-modal-thumbnail",
+            name: "src",
+            value: detail.thumbnail || null,
+          },
+          {
+            op: "setAttr",
+            targetId: "external-modal-thumbnail",
+            name: "alt",
+            value: detail.thumbnailAlt,
+          },
+        ],
       },
       {
-        op: "setAttr",
-        targetId: "external-modal-thumbnail",
-        name: "alt",
-        value: detail.thumbnailAlt,
+        trigger: "external-detail:id",
+        source: runtime.externalDetailDerived.idLabel,
+        patches: (value) => [
+          { op: "setText", targetId: "external-modal-id", value },
+        ],
       },
-    ]);
-  });
-
-  runtime.externalDetailDerived.idLabel.subscribe((value) => {
-    scheduleReactivePatches(runtime, "external-detail:id", [
-      { op: "setText", targetId: "external-modal-id", value },
-    ]);
-  });
-
-  runtime.externalDetailDerived.priceLabel.subscribe((value) => {
-    scheduleReactivePatches(runtime, "external-detail:price", [
-      { op: "setText", targetId: "external-modal-price", value },
-    ]);
-  });
-
-  runtime.externalDetailDerived.stockLabel.subscribe((value) => {
-    scheduleReactivePatches(runtime, "external-detail:stock", [
-      { op: "setText", targetId: "external-modal-stock", value },
-    ]);
-  });
-
-  runtime.externalDetailDerived.ratingLabel.subscribe((value) => {
-    scheduleReactivePatches(runtime, "external-detail:rating", [
-      { op: "setText", targetId: "external-modal-rating", value },
-    ]);
-  });
-
-  runtime.externalDetailDerived.sourceLabel.subscribe((value) => {
-    scheduleReactivePatches(runtime, "external-detail:source", [
-      { op: "setText", targetId: "external-modal-source", value },
-    ]);
-  });
+      {
+        trigger: "external-detail:price",
+        source: runtime.externalDetailDerived.priceLabel,
+        patches: (value) => [
+          { op: "setText", targetId: "external-modal-price", value },
+        ],
+      },
+      {
+        trigger: "external-detail:stock",
+        source: runtime.externalDetailDerived.stockLabel,
+        patches: (value) => [
+          { op: "setText", targetId: "external-modal-stock", value },
+        ],
+      },
+      {
+        trigger: "external-detail:rating",
+        source: runtime.externalDetailDerived.ratingLabel,
+        patches: (value) => [
+          { op: "setText", targetId: "external-modal-rating", value },
+        ],
+      },
+      {
+        trigger: "external-detail:source",
+        source: runtime.externalDetailDerived.sourceLabel,
+        patches: (value) => [
+          { op: "setText", targetId: "external-modal-source", value },
+        ],
+      },
+    ],
+    {
+      flush: "microtask",
+      dedupePatches: true,
+      owner: runtime.viewScope,
+    },
+  );
 
   ensureExternalDetailDialog(runtime);
 }
@@ -656,9 +766,12 @@ function applyExternalProductsPage(
     );
   }
 
-  schedulePatchBatch(runtime, trigger, lane, patches, [
-    "external-products-body",
-  ]);
+  scheduleRuntimePatchBatch(runtime, {
+    trigger,
+    lane,
+    patches,
+    nodes: ["external-products-body"],
+  });
 }
 
 async function refreshExternalProducts(
@@ -971,9 +1084,12 @@ function applyExternalMediaProductsPage(
     },
   );
 
-  schedulePatchBatch(runtime, trigger, lane, patches, [
-    "external-media-products-body",
-  ]);
+  scheduleRuntimePatchBatch(runtime, {
+    trigger,
+    lane,
+    patches,
+    nodes: ["external-media-products-body"],
+  });
   ensureExternalMediaDetailDialog()?.close();
 }
 
@@ -1015,11 +1131,10 @@ async function openExternalMediaDetail(
 
   const detail = (await response.json()) as ExternalProductDetailApiResponse;
 
-  schedulePatchBatch(
-    runtime,
-    "external-media-detail-open",
-    "network",
-    [
+  scheduleRuntimePatchBatch(runtime, {
+    trigger: "external-media-detail-open",
+    lane: "network",
+    patches: [
       {
         op: "setText",
         targetId: "external-media-modal-title",
@@ -1078,8 +1193,8 @@ async function openExternalMediaDetail(
         value: detail.thumbnail ? `${detail.title} thumbnail` : "No thumbnail",
       },
     ],
-    ["external-media-modal-overlay"],
-  );
+    nodes: ["external-media-modal-overlay"],
+  });
   dialog?.open();
 }
 

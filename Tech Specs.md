@@ -74,7 +74,7 @@ Client: Paint HTML → Install tiny delegator → Resume on-demand
 
 ## 5. Programming Model (Core Primitives)
 
-Helix provides 5 primitives that define graph nodes.
+Helix provides 6 primitives that define graph nodes, plus reactive lifecycle helpers.
 
 ### 5.1 `cell<T>(initial, options?)`
 
@@ -86,12 +86,31 @@ Options:
 - `serializable`
 - `secure`
 - `clientOnly`
+- `owner` (optional reactive scope owner for lifecycle disposal)
 
 ### 5.2 `derived<T>(compute, options?)`
 
 Pure computation dependent on cells/resources.
 
-### 5.3 `resource<T>(keyFn, fetcher, policy)`
+Options:
+
+- `scope`: `app | route | view | session`
+- `name`
+- `equals(next, previous)` comparator (defaults to `Object.is`) for suppressing unchanged emissions
+- `owner` (optional reactive scope owner for lifecycle disposal)
+
+### 5.3 `effect(run, options?)`
+
+Reactive side-effect that tracks dependencies dynamically and re-runs when those
+dependencies change.
+
+Options:
+
+- `scope`: `app | route | view | session`
+- `name`
+- `owner` (optional reactive scope owner for lifecycle disposal)
+
+### 5.4 `resource<T>(keyFn, fetcher, policy)`
 
 Data dependency with caching and placement rules.
 
@@ -102,7 +121,7 @@ Policy:
 - `staleMs`, `revalidateMs`, `dedupe: inflight | none`
 - `tags: string[] | (ctx) => string[]`
 
-### 5.4 `action<I, O>(handler, policy)`
+### 5.5 `action<I, O>(handler, policy)`
 
 Typed mutation boundary.
 
@@ -114,9 +133,40 @@ Policy:
 - `idempotency` (optional)
 - `optimistic` (optional; library-level helper)
 
-### 5.5 `view<Props>(renderFn)`
+### 5.6 `view<Props>(renderFn)`
 
 Declares a compiled view. TSX subset applies.
+
+### 5.7 Reactive lifecycle helpers
+
+- `batch(() => { ... })`
+  - Defers effect flushing until the outer transaction exits.
+  - Coalesces multiple writes per source to latest-value emissions in the flush turn.
+- `untracked(() => { ... })`
+  - Executes reads without dependency tracking.
+- `peek(signal)`
+  - Reads a signal-like value (`get()`) without subscribing the current computation.
+- `createReactiveScope({ name?, scope? })`
+  - Creates a disposable owner that can own cells/derived/effects via `owner` options.
+  - Disposing the scope disposes owned reactive nodes and removes graph ownership edges.
+
+### 5.8 Client interaction helpers
+
+- `createFormState({ fields, owner? })`
+  - Builds a reactive form model with per-field `value`, `error`, and `touched` state.
+  - Exposes `isValid`, `isDirty`, `isSubmitting`, `submitError`, `touchAll()`, `reset()`, `applyServerErrors()`, and `submit()`.
+- `createVisibilityTrigger(onVisible, options?)`
+  - Wraps `IntersectionObserver` for visibility-driven lazy activation.
+- `createIdleTrigger(callback, options?)`
+  - Wraps `requestIdleCallback` with a `setTimeout` fallback for idle-time activation.
+- `createAutocomplete({ fetch, debounceMs?, minLength?, maxCacheSize?, owner? })`
+  - Headless autocomplete model with reactive `query`, `results`, `status`, debounce, and result caching.
+- `createDragReorder({ items, onReorder, equals? })`
+  - Optimistic list reorder primitive with `move()`, `commit()`, and `rollback()`.
+- `createInvalidationChannel({ type, url, ... })`
+  - Client transport for live resource invalidation over SSE or WebSocket via pushed tag messages.
+- `bindTargetValue({ root, targetId, type, readValue, onValue, ... })`
+  - Generic DOM binding helper for non-string values (checkbox/radio/file/multi-select models).
 
 ## 6. TSX Compilation Rules (Compiled Views)
 
@@ -167,12 +217,13 @@ Tooling requirement: dev mode warns when escape hatch footprint exceeds threshol
 - `invalidates(Action, Tag/Resource)`
 - `imports(Module, Module)`
 - `activates(EventBinding, Chunk)`
-- `owns(ScopeOwner, Cell)` — lifecycle ownership (GC rules)
+- `owns(ScopeOwner, Cell|Derived|Effect)` — lifecycle ownership (GC rules)
 
 Current repository wiring additionally records request-flow edges as:
 
 - `renders(RouteNode, ViewNode)` from matched route to rendered view artifact
 - `dependsOn(ResourceNode, ViewNode)` for resources consumed by that rendered view
+- `dependsOn(SourceNode, DerivedNode|EffectNode)` edges are reconciled on every derived/effect recompute (stale edges are removed)
 
 ### 7.3 Determinism rules
 
@@ -241,8 +292,8 @@ On page load:
 - Do not execute view render functions
 - Attach handlers lazily when:
   - user interacts (event)
-  - element becomes visible (`IntersectionObserver`)
-  - idle time (`requestIdleCallback`)
+  - element becomes visible (`createVisibilityTrigger(...)` / `IntersectionObserver`)
+  - idle time (`createIdleTrigger(...)` / `requestIdleCallback`)
 
 ## 10. Resumability Model
 
@@ -281,6 +332,13 @@ When an event is captured:
 - Input lane can interrupt lower lanes
 - Devtools reports long tasks and offending dependencies
 
+### 11.3 Reactive flush semantics
+
+- Reactive core tasks and runtime microtask patch flushes share a single microtask turn (`scheduleReactiveTask`)
+- Deferred patch bindings (`flush: "microtask"`) no longer run on an isolated queue from `cell`/`derived` propagation
+- Runtime reactive patch installs support lifecycle ownership (`installRuntimeReactivePatchBindings(..., { owner })`); disposing the owner unsubscribes installs and clears install-key state.
+- The example client runtime rotates a per-view owner scope during app-core fragment swaps so view-scoped subscriptions are torn down before new DOM is mounted.
+
 ## 12. Data Model (Resources)
 
 ### 12.1 Keying
@@ -305,6 +363,14 @@ Actions invalidate:
 
 - Specific resource keys, or
 - Tags (recommended)
+
+Live invalidation may also arrive over SSE/WebSocket using a pushed message of shape:
+
+```ts
+{ tags: string[] }
+```
+
+The client transport calls `invalidateResourcesByTags(tags)` so the next resource read re-fetches fresh data.
 
 Helix uses graph edges to determine:
 
@@ -382,6 +448,7 @@ Virtualization determines which keys are mounted (windowing); reconciler mounts/
 - Cells per field
 - Derived validity/errors
 - Patch disabled states, error messages, `aria-*` attributes
+- `createFormState(...)` is the reference library helper for this mode
 
 Requirement: library must support server-returned structured errors:
 
@@ -591,6 +658,7 @@ For frequent updates (paging/sort/filter), add:
 - JSON endpoint in `src/example/handlers/api.handler.ts`
 - Client module in `src/example/client/*.ts` that fetches JSON and patches only stable `data-hx-id` regions
 - Browser history sync (`pushState`/`popstate`) with full-navigation fallback on error
+- For view-scoped reactive installs, pass `owner: runtime.viewScope` and rotate that scope before fragment swap so prior view subscriptions are disposed deterministically.
 
 ### Step 6 — Validate consistency
 

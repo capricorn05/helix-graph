@@ -198,6 +198,591 @@ npm run gen:bindings
 npm run check:bindings
 ```
 
+### Recipe: add an input + button + server round-trip on an existing page
+
+Use this pattern when you want to add a small interactive form to an existing page such as `/primitives`:
+
+- user types into an input
+- submit writes the value into a display element above the button
+- browser shows an `alert(...)`
+- client sends a POST to the server
+- server responds with a thank-you message that includes the original input
+
+This is the repo-native flow for that feature.
+
+#### 1. Add the markup to the page TSX shell
+
+Edit the hand-authored TSX source, not the generated compiled file:
+
+- `src/example/views-tsx/primitives.view.tsx`
+
+Add:
+
+- a display element above the form such as `<p data-hx-id="demo-message-label">Waiting for input…</p>`
+- a `<form data-hx-bind="submit-primitive-message" novalidate>`
+- an `<input name="message" data-hx-id="demo-message-input" />`
+- a submit button
+- a response element such as `<p data-hx-id="demo-message-response"></p>`
+
+Why a form? The delegated binding system already handles submit events well, and the client handler can read the value through `FormData`.
+
+#### 2. Add the client handler
+
+Create a feature client module such as:
+
+- `src/example/client/actions-primitives.ts`
+
+Export `onSubmitPrimitiveMessage()`.
+
+Inside that handler:
+
+1. Call `event.preventDefault()`.
+2. Resolve the form, input, display node, and response node.
+3. Read `message` from `new FormData(form)` and trim it.
+4. If it is empty, write a validation message into the response node and stop.
+5. Write the message into the display node above the button.
+6. Call `window.alert(message)`.
+7. Send a POST request to `/actions/submit-primitive-message` with JSON body `{ message }`.
+8. Read the JSON response.
+9. Write the returned thank-you message into the response node.
+
+This is the same wiring pattern used by the existing create-user flow, only with simpler DOM updates.
+
+#### 3. Re-export the handler
+
+Update the barrel export:
+
+- `src/example/client/actions.ts`
+
+Re-export `onSubmitPrimitiveMessage()` from `./actions-primitives.js` so the generated binding map can resolve it.
+
+#### 4. Only add metadata if the default name mapping is not enough
+
+Default binding naming already maps:
+
+- `data-hx-bind="submit-primitive-message"` → `onSubmitPrimitiveMessage()`
+
+That means `src/example/shared/client-action-metadata.ts` does not need an entry unless you want a custom `actionId`, event, custom handler name, or `preventDefault` override.
+
+#### 5. Add the server handler
+
+Update:
+
+- `src/example/handlers/api.handler.ts`
+
+Add a handler such as `handleSubmitPrimitiveMessage()` that:
+
+1. Reads `{ message?: string }` with `readJsonBody(...)`.
+2. Trims and validates `message`.
+3. Returns `400` with `{ error: "Message is required" }` when blank.
+4. Returns `200` with `{ thankYou: "Thank you for your input: ..." }` when valid.
+
+For a simple demo flow, a small POST handler is enough. If the interaction later becomes a durable mutation with invalidation, move the write into a server `action(...)` in `src/example/resources/actions.ts`.
+
+#### 6. Register the route
+
+Update:
+
+- `src/example/routes/index.ts`
+
+Wire a POST route:
+
+- `defineRoute("POST", "/actions/submit-primitive-message", handleSubmitPrimitiveMessage)`
+
+No page-route change is needed; `/primitives` already exists.
+
+#### 7. Regenerate generated artifacts
+
+After editing the TSX page and adding a new binding, run:
+
+```bash
+npm run gen:views
+npm run gen:bindings
+npm run verify
+```
+
+Why both generators?
+
+- `gen:views` updates compiled TSX output after changing `views-tsx/*.tsx`
+- `gen:bindings` updates the binding map after changing `data-hx-bind` or client handler exports
+
+#### 8. Test the behavior end to end
+
+Open `/primitives` and verify:
+
+1. Type text into the input.
+2. Submit the form.
+3. The display element above the button updates with the same text.
+4. An alert appears with the same text.
+5. A POST request is sent to `/actions/submit-primitive-message`.
+6. The response element shows a thank-you message containing the submitted text.
+
+#### Repo-native references for this pattern
+
+- TSX form with `data-hx-bind`: `src/example/views-tsx/users-page-content.view.tsx`
+- Client submit handler: `src/example/client/actions-users.ts` (`onCreateUser`)
+- Server POST handler: `src/example/handlers/api.handler.ts` (`handleCreateUser`)
+- Server action example: `src/example/resources/actions.ts` (`createUserAction`)
+
+#### Best-practice default for this repo
+
+For interaction features that maintain UI state over time, prefer framework-native reactivity:
+
+- store mutable interaction state in `cell(...)`
+- compute display state with `derived(...)`
+- subscribe once and patch/update DOM from the reactive outputs
+
+Use direct ad-hoc `textContent` writes as an MVP shortcut only when you intentionally choose a non-reactive prototype.
+
+#### Prompt template to include (framework-first: `cell` + `derived` required)
+
+Copy/paste this prompt when asking an AI assistant to implement this feature in a framework-aligned way:
+
+```text
+You are editing the Helix Graph repository.
+
+Implement the `/primitives` “Input, Alert & Server Reply” example using framework best practices.
+
+Hard requirements:
+1) Use `cell` and `derived` for client interaction state (do not rely on ad-hoc direct DOM state writes for label/response updates).
+2) Keep UX exactly the same:
+	- user types in input
+	- submit writes input to label above the button
+	- alert pops with the same input
+	- POST request is sent to `/actions/submit-primitive-message`
+	- response renders “Thank you for your input: <message>”
+3) Keep existing page structure and styling conventions.
+4) Use existing binding conventions (`data-hx-bind` + handler export mapping).
+5) Update docs where needed.
+
+Edit targets:
+- `src/example/views-tsx/primitives.view.tsx` (form + stable `data-hx-id` targets)
+- `src/example/client/actions-primitives.ts` (new handler using `cell`/`derived`)
+- `src/example/client/actions.ts` (re-export new handler)
+- `src/example/handlers/api.handler.ts` (POST handler)
+- `src/example/routes/index.ts` (route registration)
+
+Validation:
+- Run `npm run gen:views`
+- Run `npm run gen:bindings`
+- Run `npm run verify`
+
+In your final response include:
+- files changed
+- why `cell`/`derived` were used
+- test/verification results
+```
+
+#### Copy/paste version (framework-native reactivity): exact file content and where to put it
+
+Use this when you want the concrete snippets, not just the workflow.
+
+This variant matches the current `/primitives` implementation and uses `cell` + `derived` for interaction state.
+
+##### 1. `src/example/views-tsx/primitives.view.tsx`
+
+Where to put it:
+
+- paste this new `<section>` near the end of the root `<div>`
+- the simplest place is just before the final closing `</div>` in `PrimitivesPageView`
+
+```tsx
+<section>
+  <h2>Input, Alert & Server Reply</h2>
+  <form data-hx-bind="submit-primitive-message" novalidate>
+    <label>
+      Enter a message
+      <input
+        type="text"
+        name="message"
+        data-hx-id="demo-message-input"
+        placeholder="Type something here"
+      />
+    </label>
+    <p data-hx-id="demo-message-label">Typed message: -</p>
+    <div className="toolbar">
+      <button type="submit" data-hx-id="demo-message-submit">
+        Send Message
+      </button>
+    </div>
+    <p data-hx-id="demo-message-response" aria-live="polite"></p>
+  </form>
+</section>
+```
+
+What this does:
+
+- `data-hx-bind="submit-primitive-message"` connects the form submit to a client handler
+- `name="message"` lets `FormData` read the input value
+- `demo-message-label` is the display node above the button
+- `demo-message-response` is where the server reply is shown
+- `demo-message-submit` allows reactive disabled state patching during submit
+
+##### 2. `src/example/client/actions-primitives.ts`
+
+Where to put it:
+
+- update this existing file under `src/example/client/`
+
+Full file content:
+
+```ts
+import {
+  cell,
+  derived,
+  type Cell,
+  type Derived,
+} from "../../helix/reactive.js";
+import { scheduleReactivePatches } from "./actions-shared.js";
+import { HelixClientHandlerContext, HelixClientRuntime } from "./runtime.js";
+
+interface SubmitPrimitiveMessageResponse {
+  thankYou?: string;
+  error?: string;
+}
+
+interface PrimitiveMessageState {
+  message: string;
+  response: string;
+  submitting: boolean;
+}
+
+interface PrimitiveMessageDerivedState {
+  labelText: Derived<string>;
+  responseText: Derived<string>;
+  submitDisabled: Derived<boolean>;
+}
+
+interface PrimitiveMessageReactiveState {
+  stateCell: Cell<PrimitiveMessageState>;
+  derived: PrimitiveMessageDerivedState;
+}
+
+const primitiveMessageStateByRuntime = new WeakMap<
+  HelixClientRuntime,
+  PrimitiveMessageReactiveState
+>();
+
+const primitiveMessageSubscriptionsInstalled =
+  new WeakSet<HelixClientRuntime>();
+
+function makeInitialPrimitiveMessageState(): PrimitiveMessageState {
+  return {
+    message: "",
+    response: "",
+    submitting: false,
+  };
+}
+
+function getPrimitiveMessageReactiveState(
+  runtime: HelixClientRuntime,
+): PrimitiveMessageReactiveState {
+  const existing = primitiveMessageStateByRuntime.get(runtime);
+  if (existing) {
+    return existing;
+  }
+
+  const stateCell = cell(makeInitialPrimitiveMessageState(), {
+    scope: "view",
+    name: "primitives-message-state",
+    clientOnly: true,
+    serializable: false,
+  });
+
+  const computedState: PrimitiveMessageReactiveState = {
+    stateCell,
+    derived: {
+      labelText: derived(
+        () => {
+          const message = stateCell.get().message;
+          return message.length > 0
+            ? `Typed message: ${message}`
+            : "Typed message: -";
+        },
+        {
+          scope: "view",
+          name: "primitives-message-label-text",
+        },
+      ),
+      responseText: derived(() => stateCell.get().response, {
+        scope: "view",
+        name: "primitives-message-response-text",
+      }),
+      submitDisabled: derived(() => stateCell.get().submitting, {
+        scope: "view",
+        name: "primitives-message-submit-disabled",
+      }),
+    },
+  };
+
+  primitiveMessageStateByRuntime.set(runtime, computedState);
+  return computedState;
+}
+
+function installPrimitiveMessageReactivity(runtime: HelixClientRuntime): void {
+  if (primitiveMessageSubscriptionsInstalled.has(runtime)) {
+    return;
+  }
+
+  primitiveMessageSubscriptionsInstalled.add(runtime);
+  const reactiveState = getPrimitiveMessageReactiveState(runtime);
+
+  reactiveState.derived.labelText.subscribe((value) => {
+    scheduleReactivePatches(runtime, "primitives-message:label", [
+      {
+        op: "setText",
+        targetId: "demo-message-label",
+        value,
+      },
+    ]);
+  });
+
+  reactiveState.derived.responseText.subscribe((value) => {
+    scheduleReactivePatches(runtime, "primitives-message:response", [
+      {
+        op: "setText",
+        targetId: "demo-message-response",
+        value,
+      },
+    ]);
+  });
+
+  reactiveState.derived.submitDisabled.subscribe((disabled) => {
+    scheduleReactivePatches(runtime, "primitives-message:submit-disabled", [
+      {
+        op: "setAttr",
+        targetId: "demo-message-submit",
+        name: "disabled",
+        value: disabled ? "disabled" : null,
+      },
+    ]);
+  });
+}
+
+export async function onSubmitPrimitiveMessage({
+  event,
+  element,
+  runtime,
+}: HelixClientHandlerContext): Promise<void> {
+  installPrimitiveMessageReactivity(runtime);
+  const reactiveState = getPrimitiveMessageReactiveState(runtime);
+
+  event.preventDefault();
+
+  if (reactiveState.stateCell.get().submitting) {
+    return;
+  }
+
+  const form =
+    event.target instanceof HTMLFormElement
+      ? event.target
+      : element.closest("form");
+  if (!(form instanceof HTMLFormElement)) {
+    throw new Error("submit-primitive-message requires a form target");
+  }
+
+  const label = form.querySelector('[data-hx-id="demo-message-label"]');
+  const response = form.querySelector('[data-hx-id="demo-message-response"]');
+
+  if (!(label instanceof HTMLElement) || !(response instanceof HTMLElement)) {
+    throw new Error("Missing primitives message output nodes");
+  }
+
+  const formData = new FormData(form);
+  const message = String(formData.get("message") ?? "").trim();
+
+  if (!message) {
+    reactiveState.stateCell.set({
+      ...reactiveState.stateCell.get(),
+      message: "",
+      response: "Please enter a message.",
+      submitting: false,
+    });
+    return;
+  }
+
+  reactiveState.stateCell.set({
+    message,
+    response: "Sending message…",
+    submitting: true,
+  });
+
+  window.alert(message);
+
+  try {
+    const fetchResponse = await fetch("/actions/submit-primitive-message", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ message }),
+    });
+
+    const body = (await fetchResponse.json()) as SubmitPrimitiveMessageResponse;
+
+    if (!fetchResponse.ok) {
+      reactiveState.stateCell.set({
+        ...reactiveState.stateCell.get(),
+        response: body.error ?? "Request failed.",
+        submitting: false,
+      });
+      return;
+    }
+
+    reactiveState.stateCell.set({
+      ...reactiveState.stateCell.get(),
+      response: body.thankYou ?? "Thank you for your input.",
+      submitting: false,
+    });
+  } catch (error: unknown) {
+    console.error("[Helix] submit-primitive-message failed", error);
+    reactiveState.stateCell.set({
+      ...reactiveState.stateCell.get(),
+      response: "Could not send message.",
+      submitting: false,
+    });
+  }
+}
+```
+
+What this does:
+
+- installs one reactive state container per runtime using `cell(...)`
+- derives display values (`label`, `response`, `submit disabled`) with `derived(...)`
+- patches target DOM nodes through subscriptions (`scheduleReactivePatches`)
+- keeps the same UX: echo label, `alert(...)`, POST, thank-you response
+
+##### 3. `src/example/client/actions.ts`
+
+Where to put it:
+
+- add the new export alongside the existing feature exports
+
+Resulting file content:
+
+```ts
+export {
+  onExternalDetailClose,
+  onExternalDetailOpen,
+  onExternalMediaDetailClose,
+  onExternalMediaDetailOpen,
+  onExternalMediaPageNext,
+  onExternalMediaPagePrev,
+  onExternalPageNext,
+  onExternalPagePrev,
+} from "./actions-external.js";
+export { onAppNavigate, onCreatePost } from "./actions-navigation.js";
+export { onPostsPageNext, onPostsPagePrev } from "./actions-posts.js";
+export { onSubmitPrimitiveMessage } from "./actions-primitives.js";
+export {
+  onCreateUser,
+  onLoadUsersPanel,
+  onNextPage,
+  onPrevPage,
+  onSortByEmail,
+  onSortByName,
+} from "./actions-users.js";
+```
+
+##### 4. `src/example/shared/client-action-metadata.ts`
+
+Where to put it:
+
+- nowhere for this example; no change is required
+
+Why no change is needed:
+
+- the default binding convention already maps `submit-primitive-message` to `onSubmitPrimitiveMessage()`
+
+Only add metadata here if you want a custom handler name, custom `actionId`, event, or `preventDefault` override.
+
+##### 5. `src/example/handlers/api.handler.ts`
+
+Where to put it:
+
+- add this new handler near the other POST handlers
+- placing it after `handleCreatePost()` keeps the file organized
+
+Code to add:
+
+```ts
+export async function handleSubmitPrimitiveMessage(
+  ctx: RouteContext,
+): Promise<void> {
+  const input = await readJsonBody<{ message?: string }>(ctx);
+  const message = input.message?.trim() ?? "";
+
+  if (!message) {
+    sendJson(ctx, 400, { error: "Message is required" });
+    return;
+  }
+
+  sendJson(ctx, 200, {
+    thankYou: `Thank you for your input: ${message}`,
+  });
+}
+```
+
+##### 6. `src/example/routes/index.ts`
+
+This file needs three small edits.
+
+###### 6a. Add the handler import
+
+Where to put it:
+
+- in the existing API handler import block from `../handlers/api.handler.js`
+
+Add:
+
+```ts
+	handleSubmitPrimitiveMessage,
+```
+
+###### 6b. Add the route declaration
+
+Where to put it:
+
+- near the other POST action routes
+- placing it after `createPostRoute` is a good fit
+
+Add:
+
+```ts
+const submitPrimitiveMessageRoute = defineRoute(
+  "POST",
+  "/actions/submit-primitive-message",
+  handleSubmitPrimitiveMessage,
+);
+```
+
+###### 6c. Add the route to the router list
+
+Where to put it:
+
+- in the API section of the `createRouter([...])` array
+- place it near `createUserRoute` and `createPostRoute`
+
+Add:
+
+```ts
+	submitPrimitiveMessageRoute,
+```
+
+##### 7. Regenerate generated files and verify
+
+After pasting the snippets above, run:
+
+```bash
+npm run gen:views
+npm run gen:bindings
+npm run verify
+```
+
+If something does not work:
+
+- `gen:views` fixes compiled TSX drift
+- `gen:bindings` fixes binding map drift
+- `verify` catches missing exports, boundary issues, and test failures
+
 ## 10) Validate before push
 
 Run:

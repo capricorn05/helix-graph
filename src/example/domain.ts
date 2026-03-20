@@ -18,6 +18,13 @@ export interface UsersPage {
   sortDir: SortDirection;
 }
 
+export interface UserSuggestion {
+  id: number;
+  name: string;
+  email: string;
+  status: "active" | "pending";
+}
+
 export interface CreateUserInput {
   name: string;
   email: string;
@@ -77,6 +84,60 @@ export function listUsersPage(
     sortCol,
     sortDir
   };
+}
+
+function scoreSuggestionMatch(user: User, query: string): number {
+  const name = user.name.toLowerCase();
+  const email = user.email.toLowerCase();
+
+  if (name.startsWith(query)) {
+    return 4;
+  }
+
+  if (email.startsWith(query)) {
+    return 3;
+  }
+
+  if (name.includes(query)) {
+    return 2;
+  }
+
+  if (email.includes(query)) {
+    return 1;
+  }
+
+  return 0;
+}
+
+export function suggestUsers(query: string, limit = 8): UserSuggestion[] {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) {
+    return [];
+  }
+
+  const safeLimit =
+    Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 8;
+
+  return usersStore
+    .map((user) => ({
+      user,
+      score: scoreSuggestionMatch(user, normalized),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((left, right) => {
+      if (left.score !== right.score) {
+        return right.score - left.score;
+      }
+
+      return compareStrings(left.user.name, right.user.name);
+    })
+    .slice(0, safeLimit)
+    .map(({ user }) => ({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      status: user.status,
+    }));
 }
 
 export function getUserById(id: number): User | undefined {

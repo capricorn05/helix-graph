@@ -4,7 +4,8 @@ import ts from "typescript";
 /**
  * The DOM event type wired for a `data-hx-bind` binding.
  *
- * `click` and `submit` are inferred automatically from element type.
+ * `click`, `submit`, `input`, and `change` are inferred automatically from
+ * element type.
  * All other values must be set explicitly via `data-hx-event="<event>"` on the
  * same element as `data-hx-bind`.
  */
@@ -147,6 +148,24 @@ function registerBinding(
   }
 
   state.bindings.set(id, event);
+}
+
+function inferDefaultBindingEvent(tagName: string): BindingEvent {
+  const normalizedTag = tagName.toLowerCase();
+
+  if (normalizedTag === "form") {
+    return "submit";
+  }
+
+  if (normalizedTag === "input" || normalizedTag === "textarea") {
+    return "input";
+  }
+
+  if (normalizedTag === "select") {
+    return "change";
+  }
+
+  return "click";
 }
 
 function expressionContainsJsx(node: ts.Node): boolean {
@@ -612,8 +631,7 @@ function renderAttributes(
 
       if (attrName === "data-hx-bind") {
         const event: BindingEvent =
-          eventOverride ??
-          (tagName.toLowerCase() === "form" ? "submit" : "click");
+          eventOverride ?? inferDefaultBindingEvent(tagName);
         registerBinding(state, value, event, initializer);
       }
 

@@ -30,13 +30,27 @@ const postsColumns: UIDataTableColumnDef<PostRow>[] = [
       row.body.slice(0, 80) + (row.body.length > 80 ? "…" : ""),
     cellAttrs: ({ row }) => ({ "data-hx-id": `post-row-${row.id}-body` }),
   },
+  {
+    id: "reorder",
+    header: "",
+    cell: ({ row }) =>
+      `<button class="reorder-btn" data-reorder-dir="up" data-post-id="${row.id}" aria-label="Move post ${row.id} up" title="Move up">▲</button>` +
+      `<button class="reorder-btn" data-reorder-dir="down" data-post-id="${row.id}" aria-label="Move post ${row.id} down" title="Move down">▼</button>`,
+    wrap: false,
+    cellAttrs: { class: "reorder-cell" },
+  },
 ];
 
 export function renderPostsPage(page: PostsPage): string {
   const tableHtml = uiDataTable({
     data: page.rows,
     columns: postsColumns,
-    rowAttrs: (row) => ({ "data-hx-key": row.id }),
+    rowAttrs: (row) => ({
+      "data-hx-key": row.id,
+      "data-post-id": row.id,
+      draggable: "true",
+      class: "posts-row",
+    }),
     bodyAttrs: {
       "data-hx-id": "posts-body",
       "data-hx-list": "posts-body",

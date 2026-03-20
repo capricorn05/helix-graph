@@ -2,7 +2,11 @@
   "extends": "../../../tsconfig.json",
   "compilerOptions": {
     "noEmit": true,
-    "jsx": "preserve"
+    "jsx": "preserve",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "skipLibCheck": false
   },
-  "include": ["./**/*.tsx", "./**/*.d.ts"]
+  "include": ["./**/*.tsx", "./**/*.ts", "./**/*.d.ts"]
 }

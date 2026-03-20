@@ -173,6 +173,11 @@ async function ensurePostsStore(): Promise<PostRow[]> {
   return postsLoadPromise;
 }
 
+export function setPostsStoreForTests(rows: PostRow[]): void {
+  postsStore = [...rows];
+  postsLoadPromise = null;
+}
+
 export function resetPostsStoreForTests(): void {
   postsStore = null;
   postsLoadPromise = null;
@@ -196,6 +201,63 @@ export async function createPost(input: CreatePostInput): Promise<PostRow> {
 
   rows.unshift(created);
   return created;
+}
+
+function hasUniqueNumericIds(ids: readonly number[]): boolean {
+  const seen = new Set<number>();
+  for (const id of ids) {
+    if (!Number.isFinite(id) || id <= 0 || seen.has(id)) {
+      return false;
+    }
+    seen.add(id);
+  }
+
+  return true;
+}
+
+/**
+ * Reorders the rows inside a single page window while preserving all rows
+ * outside that page. Returns false when payload validation fails.
+ */
+export async function reorderPostsPageRows(
+  page: number,
+  pageSize: number,
+  rowIds: number[],
+): Promise<boolean> {
+  const rows = await ensurePostsStore();
+  if (!hasUniqueNumericIds(rowIds)) {
+    return false;
+  }
+
+  const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+  const safePageSize =
+    Number.isFinite(pageSize) && pageSize > 0 ? Math.floor(pageSize) : POSTS_PAGE_SIZE;
+
+  const totalPages = Math.max(1, Math.ceil(rows.length / safePageSize));
+  const clampedPage = Math.min(safePage, totalPages);
+  const startIndex = (clampedPage - 1) * safePageSize;
+  const currentSlice = rows.slice(startIndex, startIndex + safePageSize);
+
+  if (currentSlice.length === 0 || rowIds.length !== currentSlice.length) {
+    return false;
+  }
+
+  const currentIds = currentSlice.map((row) => row.id);
+  const expectedIds = new Set(currentIds);
+  for (const rowId of rowIds) {
+    if (!expectedIds.has(rowId)) {
+      return false;
+    }
+  }
+
+  const rowById = new Map(currentSlice.map((row) => [row.id, row]));
+  const reorderedSlice = rowIds.map((id) => rowById.get(id)).filter(Boolean) as PostRow[];
+  if (reorderedSlice.length !== currentSlice.length) {
+    return false;
+  }
+
+  rows.splice(startIndex, currentSlice.length, ...reorderedSlice);
+  return true;
 }
 
 export const postsResource = resource<PostsPage, PostsContext>(

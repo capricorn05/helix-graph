@@ -1,5 +1,4 @@
-import type { FormActionError, Lane, PatchOp } from "../../helix/types.js";
-import type { HelixClientRuntime } from "./runtime.js";
+import type { FormActionError } from "../../helix/types.js";
 
 export function parseNumeric(
   value: string | undefined,
@@ -15,49 +14,6 @@ export function parseNumeric(
   }
 
   return parsed;
-}
-
-export function schedulePatchBatch(
-  runtime: HelixClientRuntime,
-  trigger: string,
-  lane: Lane,
-  patches: PatchOp[],
-  nodes: string[],
-): void {
-  runtime.scheduler.schedule({
-    trigger,
-    lane,
-    patches,
-    nodes,
-    run: (batch) => runtime.patchRuntime.applyBatch(batch),
-  });
-}
-
-function hasPatchTarget(targetId: string): boolean {
-  return (
-    document.querySelector(`[data-hx-id="${targetId}"]`) instanceof Element
-  );
-}
-
-export function scheduleReactivePatches(
-  runtime: HelixClientRuntime,
-  trigger: string,
-  patches: PatchOp[],
-): void {
-  const presentPatches = patches.filter((patch) =>
-    hasPatchTarget(patch.targetId),
-  );
-  if (presentPatches.length === 0) {
-    return;
-  }
-
-  schedulePatchBatch(
-    runtime,
-    trigger,
-    "input",
-    presentPatches,
-    Array.from(new Set(presentPatches.map((patch) => patch.targetId))),
-  );
 }
 
 export function isPrimaryNavigationEvent(event: Event): boolean {

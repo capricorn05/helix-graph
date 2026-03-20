@@ -58,4 +58,10 @@ export const appClientActionMetadata = defineClientActionMetadata({
     actionId: "setSort",
     handlerExport: "onSortByName",
   },
+  "user-detail-close": {
+    actionId: "user-detail",
+  },
+  "user-detail-open": {
+    actionId: "user-detail",
+  },
 });

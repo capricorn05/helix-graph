@@ -11,6 +11,8 @@ test("collectBindingsAndListsFromViewSource finds bindings/lists across supporte
 const html = \
   '<button data-hx-bind="save-user">Save</button>' +
   '<form data-hx-bind="save-form"></form>' +
+  '<input data-hx-bind="filter-users" />' +
+  '<select data-hx-bind="set-sort"></select>' +
   '<tbody data-hx-list="users-body"></tbody>';
 
 const attrs = {
@@ -29,9 +31,11 @@ const button = uiButton({ bind: "refresh-users" });
   const sortedLists = result.listIds.slice().sort((a, b) => a.localeCompare(b));
 
   assert.deepEqual(sortedBindings, [
+    { id: "filter-users", event: "input" },
     { id: "refresh-users", event: "click" },
     { id: "save-form", event: "submit" },
     { id: "save-user", event: "click" },
+    { id: "set-sort", event: "change" },
   ]);
 
   assert.deepEqual(sortedLists, ["posts-body", "users-body"]);

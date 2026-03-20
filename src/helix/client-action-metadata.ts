@@ -1,9 +1,10 @@
 import { toCamelCase, toPascalCase } from "./compiler-utils.js";
-import type { BindingRecord } from "./binding-map-compiler.js";
+import type { BindingEvent, BindingRecord } from "./binding-map-compiler.js";
 import type { BindingMapEventEntry } from "./codegen-emitters.js";
 
 export interface ClientActionMetadataEntry {
   actionId?: string;
+  event?: BindingEvent;
   handlerExport?: string;
   preventDefault?: boolean;
   chunk?: string;
@@ -18,9 +19,9 @@ export interface ResolveClientActionEventEntriesOptions {
   defaultChunk: string;
 }
 
-export function defineClientActionMetadata<const T extends ClientActionMetadata>(
-  metadata: T,
-): T {
+export function defineClientActionMetadata<
+  const T extends ClientActionMetadata,
+>(metadata: T): T {
   return metadata;
 }
 
@@ -93,7 +94,9 @@ function validateNoStaleMetadataKeys(
 export function resolveClientActionEventEntries(
   options: ResolveClientActionEventEntriesOptions,
 ): BindingMapEventEntry[] {
-  const discoveredBindingIds = new Set(options.bindings.map((binding) => binding.id));
+  const discoveredBindingIds = new Set(
+    options.bindings.map((binding) => binding.id),
+  );
   validateNoStaleMetadataKeys(discoveredBindingIds, options.metadata);
 
   return options.bindings.map((binding) => {
@@ -101,7 +104,7 @@ export function resolveClientActionEventEntries(
 
     const entry: BindingMapEventEntry = {
       id: binding.id,
-      event: binding.event,
+      event: metadataEntry?.event ?? binding.event,
       actionId: metadataEntry?.actionId ?? toCamelCase(binding.id),
       chunk: metadataEntry?.chunk ?? options.defaultChunk,
       handlerExport: resolveHandlerExport(

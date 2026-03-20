@@ -22,6 +22,52 @@ export class UnifiedGraph {
     this.incoming.get(edge.to)?.add(edge.id);
   }
 
+  removeEdge(edgeId: string): boolean {
+    const edge = this.edges.get(edgeId);
+    if (!edge) {
+      return false;
+    }
+
+    this.edges.delete(edgeId);
+
+    const fromOutgoing = this.outgoing.get(edge.from);
+    fromOutgoing?.delete(edgeId);
+    if (fromOutgoing && fromOutgoing.size === 0) {
+      this.outgoing.delete(edge.from);
+    }
+
+    const toIncoming = this.incoming.get(edge.to);
+    toIncoming?.delete(edgeId);
+    if (toIncoming && toIncoming.size === 0) {
+      this.incoming.delete(edge.to);
+    }
+
+    return true;
+  }
+
+  removeNode(nodeId: string): boolean {
+    if (!this.nodes.has(nodeId)) {
+      return false;
+    }
+
+    const outgoingEdgeIds = this.outgoing.get(nodeId);
+    if (outgoingEdgeIds) {
+      for (const edgeId of Array.from(outgoingEdgeIds)) {
+        this.removeEdge(edgeId);
+      }
+    }
+
+    const incomingEdgeIds = this.incoming.get(nodeId);
+    if (incomingEdgeIds) {
+      for (const edgeId of Array.from(incomingEdgeIds)) {
+        this.removeEdge(edgeId);
+      }
+    }
+
+    this.nodes.delete(nodeId);
+    return true;
+  }
+
   getNode(id: string): GraphNode | undefined {
     return this.nodes.get(id);
   }

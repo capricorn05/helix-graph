@@ -144,6 +144,8 @@ export default function DemoView(props: { rowsHtml: string }) {
     <section data-hx-id="demo-root">
       <button data-hx-bind="save-user">Save</button>
       <form data-hx-bind="save-form"></form>
+      <input data-hx-bind="filter-users" />
+      <select data-hx-bind="set-sort"></select>
       <table>
         <tbody data-hx-list="users-body">
           <hx-slot value={props.rowsHtml} />
@@ -158,6 +160,8 @@ export default function DemoView(props: { rowsHtml: string }) {
 
   assert.equal(compiled.bindings.get("save-user"), "click");
   assert.equal(compiled.bindings.get("save-form"), "submit");
+  assert.equal(compiled.bindings.get("filter-users"), "input");
+  assert.equal(compiled.bindings.get("set-sort"), "change");
   assert.ok(compiled.lists.includes("users-body"));
 });
 
